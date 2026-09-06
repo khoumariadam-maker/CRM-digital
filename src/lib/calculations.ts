@@ -10,12 +10,30 @@ export function convertDzdToUsd(amountDzd: number, rate: number): number {
   return Number((amountDzd / rate).toFixed(2));
 }
 
+export function parseNumericInput(val: string | number | undefined | null): number {
+  if (val === undefined || val === null) return 0;
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+  const cleaned = val.trim().replace(',', '.');
+  const parsed = parseFloat(cleaned);
+  return isNaN(parsed) ? 0 : parsed;
+}
+
 export function formatMoney(amount: number, currency: Currency): string {
   const safe = isNaN(amount) ? 0 : amount;
   if (currency === 'DZD') {
     return `${safe.toLocaleString('fr-DZ', { maximumFractionDigits: 0 })} DA`;
   }
   return `$${safe.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export function formatSignedProfit(amountDzd: number, currency: Currency, amountUsd?: number): string {
+  const isPositive = amountDzd >= 0;
+  const prefix = isPositive ? '+' : '';
+  if (currency === 'DZD') {
+    return `${prefix}${amountDzd.toLocaleString('fr-DZ', { maximumFractionDigits: 0 })} DA`;
+  }
+  const usdVal = amountUsd !== undefined ? amountUsd : 0;
+  return `${prefix}$${usdVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function normalizeAlgerianPhone(rawPhone?: string): string {

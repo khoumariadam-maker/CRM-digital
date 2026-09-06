@@ -140,14 +140,68 @@ DzDigital CRM delivers a streamlined, mobile-first web app enabling **Adem** and
 
 ---
 
+### Phase 8: Firebase Shared Architecture, Mobile Responsiveness & 4-Digit PIN Security
+* **Market & Operational Problems Solved**:
+  1. **Firebase Data Isolation Bug Fixed**:
+     - Previously, Firebase config was entered via `/settings` on each browser, storing it in device `localStorage`. Adem and Abdou were not sharing data because credentials were not synchronized.
+     - Furthermore, Firestore `setDoc()` was rejecting sales containing optional empty fields (`customerName`, `customerPhone`, `deliveredKey`, `notes`) due to Firestore's rejection of `undefined` values.
+     - **Solution**:
+       - Centralized Firebase configuration directly in code (`src/lib/firebaseConfig.ts` + `.env.local`). Both partners automatically connect to the exact same Firestore database.
+       - Removed manual Firebase API key inputs from `/settings`.
+       - Implemented clean object serialization ensuring `undefined` values are never passed to Firestore.
+       - Added real-time Firestore synchronization for sales, product vault, and Square exchange rate.
+  2. **Mobile Form Ergonomics & Adding Sales Fix**:
+     - Previously on mobile phones, opening the virtual keyboard pushed the modal submit button out of reach or cut it off.
+     - **Solution**:
+       - Restructured `FastSaleModal` and `CreateProductModal` with a sticky header and sticky footer (`form="sale-form"`).
+       - The "Confirm & Save Sale" button is pinned to the bottom of the phone screen with `pb-safe`, always visible and tappable.
+       - Added mobile-optimized `inputMode="numeric"` and `inputMode="decimal"` for instant numeric keypad invocation on touch devices.
+       - Centralized modal open/close states in `CRMDataContext` to eliminate duplicated modal instances.
+       - Added instant feedback toast notifications upon logging sales or updating stock.
+  3. **4-Digit PIN Authentication Engine**:
+     - Implemented `AuthContext` and `PinLoginScreen`:
+       - **Adem**: PIN `1234`
+       - **Abdou**: PIN `5678`
+     - Features a phone-first numeric keypad (digits 0-9, clear, delete), auto-unlock upon 4th digit entry, tactile error shake animations, and one-tap quick switcher.
+     - Remembers authenticated partner session in `localStorage` with quick-lock in `TopHeader` and `/settings`.
+
+---
+
+### Phase 9: Skeptical Code Review, Bug Fixes & Mobile Production Hardening
+* **Critical Issues Found and Fixed**:
+  1. **HTML5 Step Constraint Bug in Mobile Modals**:
+     - In `FastSaleModal` and `CreateProductModal`, `step="50"` on selling price and `step="0.1"` on costs caused HTML5 constraint validation to reject normal inputs like `1990 DA` or `$3.99`. On mobile browsers, validation tooltips were obscured, making the submit button appear broken.
+     - **Fix**: Replaced with `step="any"`, added `parseNumericInput()` with comma-to-dot normalization for Algerian keypad layouts (`4,50` -> `4.50`).
+  2. **Partner Authentication Disconnect**:
+     - `CRMDataContext.activePartner` was disconnected from `AuthContext.partner`, remaining stuck on `'Adem'` even when Abdou logged in with PIN `5678`.
+     - **Fix**: Connected `CRMDataContext` to `useAuth()`. Authenticated partner immediately updates `activePartner`, defaulting `FastSaleModal` and `TopHeader` to the active seller.
+  3. **PIN Security Hardening & Smooth Celebration Feedback**:
+     - The login screen previously exposed 1-tap bypass buttons that leaked the PIN codes and skipped code entry entirely.
+     - Furthermore, `setPartner` unmounted `PinLoginScreen` synchronously, making the welcome celebration card dead code.
+     - **Fix**: Removed bypass buttons, implemented 450ms celebration transition showing the welcome badge before unmounting, and retained discreet credentials hint.
+  4. **Exchange Rate Never Written to Firestore**:
+     - Previous code never persisted `crm_settings/exchange_rate` to Firestore, preventing partners from sharing black-market rate changes.
+     - **Fix**: Implemented `updateExchangeRate()` persisting to `crm_settings/exchange_rate` and propagating changes in real time.
+  5. **Firestore Initial Catalog Seeding & Truthful Connection Status**:
+     - `isFirebaseConnected` previously remained `true` even when `onSnapshot` failed, misleading users.
+     - Empty Firestore collections were not auto-seeded, risking catalog loss.
+     - **Fix**: Added truthful connection status (`connected`, `offline`, `syncing`, `error`), auto-seeding of initial products/sales on first connection, and a manual "Push to Cloud" button in Settings.
+  6. **Key Delivery Visibility in FastSaleModal**:
+     - `FastSaleModal` previously auto-selected keys inside a collapsed accordion without seller knowledge.
+     - **Fix**: Added an explicit key vault panel with delivery toggle and stock count right on the primary form.
+
+---
+
 ## Technical Artifacts & Key Decisions Matrix
 
 | Decision | Alternative Considered | Chosen Approach | Rationale |
 | :--- | :--- | :--- | :--- |
 | **Backend Database** | Supabase (PostgreSQL) | Google Firebase Firestore | 100% permanently free Spark tier; native real-time sync (`onSnapshot`); zero SQL migration maintenance. |
+| **Firebase Config** | Per-device LocalStorage form | Code config (`firebaseConfig.ts` + `.env.local`) | Guarantees all partner phones automatically connect to the exact same cloud database without manual setup. |
+| **Authentication** | Passwords or email magic links | 4-digit PIN codes (Adem: 1234, Abdou: 5678) | Sub-second mobile login with zero friction; perfectly matches the two-partner business model. |
 | **Ad Spend Model** | Aggregated daily ad budget table | Per-sale Meta ad attribution | Direct attribution provides instant, unambiguous net profit per sale and per partner. |
 | **Exchange Rate** | Central Bank API | User-editable Square rate | Bank rates in Algeria (e.g. ~134 DA) do not match actual black market sourcing costs (~242 DA). |
-| **Form UX** | Multi-step wizard | Single modal with accordions | Sellers need to log sales in under 10 seconds while mid-chat on their phone. |
+| **Form UX** | Multi-step wizard | Single modal with accordions & sticky footer | Sellers need to log sales in under 10 seconds while mid-chat on their phone without keyboard clipping. |
 | **Navigation** | Desktop sidebar only | Mobile bottom nav + FAB | 90%+ of sales entries occur directly on mobile devices. |
 
 ---

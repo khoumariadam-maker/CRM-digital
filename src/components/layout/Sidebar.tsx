@@ -5,20 +5,22 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCRMData } from '@/context/CRMDataContext';
 import { useCurrency } from '@/context/CurrencyContext';
+import { useAuth } from '@/context/AuthContext';
 import {
   LayoutDashboard,
   ShoppingBag,
   Package,
   Settings,
-  ShieldCheck,
   Flame,
   Users,
+  Lock,
 } from 'lucide-react';
 
 export default function Sidebar() {
   const pathname = usePathname();
   const { sales, products, isFirebaseConnected, financials } = useCRMData();
   const { format } = useCurrency();
+  const { partner, logout } = useAuth();
 
   const navItems = [
     {
@@ -42,10 +44,10 @@ export default function Sidebar() {
       badgeColor: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
     },
     {
-      label: 'Firebase & Cloud',
+      label: 'Settings & Cloud',
       href: '/settings',
       icon: Settings,
-      badge: isFirebaseConnected ? 'Live' : 'Local',
+      badge: isFirebaseConnected ? 'Cloud Active' : 'Offline',
       badgeColor: isFirebaseConnected
         ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
         : 'bg-amber-500/20 text-amber-300 border-amber-500/30',
@@ -138,17 +140,32 @@ export default function Sidebar() {
         </div>
       </nav>
 
-      {/* Footer Firebase Status */}
-      <div className="p-4 border-t border-white/10 m-3 rounded-2xl bg-slate-900/80 border">
-        <div className="flex items-center gap-2 mb-1 text-xs font-bold text-slate-200">
-          <Flame className="w-4 h-4 text-amber-400" />
-          <span>Google Firebase</span>
+      {/* Authenticated User & Lock */}
+      <div className="p-4 border-t border-white/10 m-3 rounded-2xl bg-slate-900/80 border flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div
+            className={`w-7 h-7 rounded-lg font-black text-xs text-white flex items-center justify-center ${
+              partner === 'Adem' ? 'bg-blue-600' : 'bg-emerald-600'
+            }`}
+          >
+            {partner?.[0] || 'A'}
+          </div>
+          <div>
+            <span className="text-xs font-bold text-white block">{partner || 'Guest'}</span>
+            <span className="text-[10px] text-emerald-400 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              Authenticated
+            </span>
+          </div>
         </div>
-        <p className="text-[11px] text-slate-400 leading-relaxed mb-2">
-          {isFirebaseConnected
-            ? 'Connected & syncing in real time.'
-            : 'Running offline-first. Add keys in Settings.'}
-        </p>
+        <button
+          type="button"
+          onClick={logout}
+          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-amber-400 transition-colors cursor-pointer"
+          title="Lock App"
+        >
+          <Lock className="w-3.5 h-3.5" />
+        </button>
       </div>
     </aside>
   );

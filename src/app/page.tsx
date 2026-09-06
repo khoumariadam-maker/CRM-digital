@@ -3,13 +3,9 @@
 import React, { useState } from 'react';
 import { useCRMData } from '@/context/CRMDataContext';
 import { useCurrency } from '@/context/CurrencyContext';
-import FastSaleModal from '@/components/modals/FastSaleModal';
-import CreateProductModal from '@/components/modals/CreateProductModal';
 import { generateWhatsAppLink } from '@/lib/calculations';
 import {
   TrendingUp,
-  DollarSign,
-  Megaphone,
   ShoppingBag,
   Plus,
   Users,
@@ -17,18 +13,15 @@ import {
   Check,
   MessageCircle,
   Sparkles,
-  Flame,
   ArrowRight,
   Trash2,
 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function DashboardPage() {
-  const { sales, deleteSale, financials, activePartner } = useCRMData();
+  const { sales, deleteSale, financials, openSaleModal } = useCRMData();
   const { currency, format, exchangeRate } = useCurrency();
 
-  const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
-  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const handleCopy = (text: string, id: string) => {
@@ -139,7 +132,8 @@ export default function DashboardPage() {
 
       {/* 3. Big Touch Button to Log Sale */}
       <button
-        onClick={() => setIsSaleModalOpen(true)}
+        type="button"
+        onClick={openSaleModal}
         className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm sm:text-base shadow-xl shadow-emerald-600/30 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
       >
         <Plus className="w-5 h-5 stroke-[3]" />
@@ -198,45 +192,65 @@ export default function DashboardPage() {
                   </span>
                 </div>
 
-                {/* Product Name & Selling Price */}
+                {/* Product Name & Customer info */}
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h4 className="text-sm font-bold text-white leading-tight">
+                    <h4 className="font-bold text-white text-sm sm:text-base">
                       {sale.productName}
                     </h4>
                     {sale.customerName && (
-                      <span className="text-[11px] text-slate-400 mt-0.5 block">
-                        Customer: {sale.customerName} {sale.customerPhone ? `(${sale.customerPhone})` : ''}
+                      <span className="text-xs text-slate-400 block mt-0.5">
+                        Client: {sale.customerName}{' '}
+                        {sale.customerPhone && `(${sale.customerPhone})`}
                       </span>
                     )}
                   </div>
 
+                  {/* Net Profit Badge */}
                   <div className="text-right shrink-0">
-                    <div className="text-sm font-black text-white">
-                      {format(sale.sellingPriceDzd)}
-                    </div>
-                    <div className="text-xs font-black text-emerald-400">
-                      +{format(sale.netProfitDzd)} Net
-                    </div>
+                    <span className={`text-xs sm:text-sm font-black block ${sale.netProfitDzd >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {sale.netProfitDzd >= 0 ? `+${format(sale.netProfitDzd)}` : format(sale.netProfitDzd)}
+                    </span>
+                    <span className="text-[10px] text-slate-400">Net Profit</span>
                   </div>
                 </div>
 
-                {/* Costs Detail Pill */}
-                <div className="flex items-center justify-between text-[11px] text-slate-400 bg-slate-950/80 px-2.5 py-1.5 rounded-xl border border-white/5">
-                  <span>Product: ${sale.productCostUsd} ({productCostDzd} DA)</span>
-                  <span className="text-slate-600">•</span>
-                  <span>Meta Ad: ${sale.metaAdCostUsd} ({metaAdDzd} DA)</span>
+                {/* Financial breakdown details */}
+                <div className="grid grid-cols-3 gap-2 p-2 rounded-xl bg-slate-950/70 text-[11px] border border-white/5">
+                  <div>
+                    <span className="text-slate-400 block text-[10px]">Price (DA)</span>
+                    <span className="font-bold text-white">
+                      {sale.sellingPriceDzd.toLocaleString()} DA
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px]">Cost ($)</span>
+                    <span className="font-semibold text-amber-300">
+                      ${sale.productCostUsd} ({productCostDzd} DA)
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px]">Meta Ad ($)</span>
+                    <span className="font-semibold text-indigo-300">
+                      ${sale.metaAdCostUsd} ({metaAdDzd} DA)
+                    </span>
+                  </div>
                 </div>
 
-                {/* Key / Credentials if any */}
+                {/* Delivered License Key snippet */}
                 {sale.deliveredKey && (
-                  <div className="p-2 rounded-xl bg-slate-950 border border-emerald-500/20 flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-mono text-emerald-300 truncate">
-                      🔑 {sale.deliveredKey}
-                    </span>
+                  <div className="p-2 rounded-xl bg-slate-950 border border-white/5 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-[10px] text-slate-400 font-mono shrink-0">KEY:</span>
+                      <code className="text-xs text-emerald-400 font-mono truncate">
+                        {sale.deliveredKey}
+                      </code>
+                    </div>
                     <button
+                      type="button"
                       onClick={() => handleCopy(sale.deliveredKey!, sale.id)}
-                      className="text-slate-400 hover:text-white p-1 shrink-0"
+                      className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white shrink-0 cursor-pointer"
+                      title="Copy Key"
                     >
                       {copiedId === sale.id ? (
                         <Check className="w-3.5 h-3.5 text-emerald-400" />
@@ -266,8 +280,9 @@ export default function DashboardPage() {
                       </a>
                     )}
                     <button
+                      type="button"
                       onClick={() => deleteSale(sale.id)}
-                      className="p-1.5 text-slate-400 hover:text-red-400 transition-colors"
+                      className="p-1.5 text-slate-400 hover:text-red-400 transition-colors cursor-pointer"
                       title="Delete sale"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -279,10 +294,6 @@ export default function DashboardPage() {
           })}
         </div>
       </div>
-
-      {/* Modals */}
-      <FastSaleModal isOpen={isSaleModalOpen} onClose={() => setIsSaleModalOpen(false)} />
-      <CreateProductModal isOpen={isProductModalOpen} onClose={() => setIsProductModalOpen(false)} />
     </div>
   );
 }
