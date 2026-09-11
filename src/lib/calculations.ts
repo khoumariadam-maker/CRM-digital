@@ -1,4 +1,4 @@
-import { Currency, Sale, FinancialSummary } from '@/types/crm';
+import { Currency, Sale, Expense, DailyAdSpend, FinancialSummary } from '@/types/crm';
 
 export function convertUsdToDzd(amountUsd: number, rate: number): number {
   if (!amountUsd || isNaN(amountUsd)) return 0;
@@ -60,8 +60,8 @@ export function generateWhatsAppLink(phone?: string, message?: string): string {
 export function calculateSaleNetProfit(
   sellingPriceDzd: number,
   productCostUsd: number,
-  metaAdCostUsd: number,
-  rate: number
+  rate: number,
+  metaAdCostUsd: number = 0
 ): { netProfitDzd: number; netProfitUsd: number; marginPercent: number } {
   const productCostDzd = convertUsdToDzd(productCostUsd, rate);
   const metaAdCostDzd = convertUsdToDzd(metaAdCostUsd, rate);
@@ -76,29 +76,77 @@ export function calculateSaleNetProfit(
   };
 }
 
-export function calculateSummary(sales: Sale[], rate: number): FinancialSummary {
+export function calculateSummary(
+  sales: Sale[],
+  rate: number,
+  expenses: Expense[] = [],
+  dailyAdSpends: DailyAdSpend[] = []
+): FinancialSummary {
   const totalRevenueDzd = sales.reduce((sum, s) => sum + (s.sellingPriceDzd || 0), 0);
   const totalRevenueUsd = convertDzdToUsd(totalRevenueDzd, rate);
 
-  const totalProductCostDzd = sales.reduce((sum, s) => sum + convertUsdToDzd(s.productCostUsd || 0, s.exchangeRateUsed || rate), 0);
+  const totalProductCostDzd = sales.reduce(
+    (sum, s) => sum + convertUsdToDzd(s.productCostUsd || 0, s.exchangeRateUsed || rate),
+    0
+  );
   const totalProductCostUsd = convertDzdToUsd(totalProductCostDzd, rate);
 
-  const totalMetaAdSpendDzd = sales.reduce((sum, s) => sum + convertUsdToDzd(s.metaAdCostUsd || 0, s.exchangeRateUsed || rate), 0);
+  // If daily ad spends are logged, use daily total; otherwise fallback to per-sale sum for backwards compatibility
+  let totalMetaAdSpendDzd = 0;
+  if (dailyAdSpends.length > 0) {
+    totalMetaAdSpendDzd = dailyAdSpends.reduce((sum, d) => sum + (d.spendDzd || 0), 0);
+  } else {
+    totalMetaAdSpendDzd = sales.reduce(
+      (sum, s) => sum + convertUsdToDzd(s.metaAdCostUsd || 0, s.exchangeRateUsed || rate),
+      0
+    );
+  }
   const totalMetaAdSpendUsd = convertDzdToUsd(totalMetaAdSpendDzd, rate);
 
-  const netProfitDzd = totalRevenueDzd - totalProductCostDzd - totalMetaAdSpendDzd;
+  // Total Expenses (Dépenses)
+  const totalExpensesDzd = expenses.reduce((sum, e) => {
+    if (e.currency === 'USD') {
+      return sum + convertUsdToDzd(e.amountUsd || 0, rate);
+    }
+    return sum + (e.amountDzd || 0);
+  }, 0);
+  const totalExpensesUsd = convertDzdToUsd(totalExpensesDzd, rate);
+
+  // True Net Profit
+  const netProfitDzd = totalRevenueDzd - totalProductCostDzd - totalMetaAdSpendDzd - totalExpensesDzd;
   const netProfitUsd = convertDzdToUsd(netProfitDzd, rate);
 
   const profitMarginPercent = totalRevenueDzd > 0 ? Math.round((netProfitDzd / totalRevenueDzd) * 100) : 0;
+
+  // Upcoming / Pending Payments
+  const pendingSales = sales.filter((s) => s.paymentStatus === 'pending');
+  const paidSales = sales.filter((s) => s.paymentStatus !== 'pending');
+  const pendingPaymentsCount = pendingSales.length;
+  const pendingPaymentsAmountDzd = pendingSales.reduce((sum, s) => sum + (s.sellingPriceDzd || 0), 0);
 
   // Breakdown by partner (Adem & Abdou)
   const ademSales = sales.filter((s) => s.soldBy === 'Adem');
   const abdouSales = sales.filter((s) => s.soldBy === 'Abdou');
 
-  const ademProfitDzd = ademSales.reduce((sum, s) => sum + (s.netProfitDzd || 0), 0);
-  const abdouProfitDzd = abdouSales.reduce((sum, s) => sum + (s.netProfitDzd || 0), 0);
+  const ademGrossSalesProfit = ademSales.reduce(
+    (sum, s) => sum + (s.sellingPriceDzd - convertUsdToDzd(s.productCostUsd || 0, s.exchangeRateUsed || rate)),
+    0
+  );
+  const abdouGrossSalesProfit = abdouSales.reduce(
+    (sum, s) => sum + (s.sellingPriceDzd - convertUsdToDzd(s.productCostUsd || 0, s.exchangeRateUsed || rate)),
+    0
+  );
+
+  // Split shared overhead (ads + expenses) equally between partners
+  const sharedOverheadDzd = totalMetaAdSpendDzd + totalExpensesDzd;
+  const ademProfitDzd = Math.round(ademGrossSalesProfit - sharedOverheadDzd / 2);
+  const abdouProfitDzd = Math.round(abdouGrossSalesProfit - sharedOverheadDzd / 2);
 
   const averageSaleProfitDzd = sales.length > 0 ? Math.round(netProfitDzd / sales.length) : 0;
+
+  // Message & Ad metrics
+  const totalMessagesCount = dailyAdSpends.reduce((sum, d) => sum + (d.messagesCount || 0), 0);
+  const averageCpmDzd = totalMessagesCount > 0 ? Math.round(totalMetaAdSpendDzd / totalMessagesCount) : 0;
 
   return {
     totalRevenueDzd,
@@ -107,14 +155,79 @@ export function calculateSummary(sales: Sale[], rate: number): FinancialSummary 
     totalProductCostUsd,
     totalMetaAdSpendDzd,
     totalMetaAdSpendUsd,
+    totalExpensesDzd,
+    totalExpensesUsd,
     netProfitDzd,
     netProfitUsd,
     profitMarginPercent,
     salesCount: sales.length,
+    paidSalesCount: paidSales.length,
+    pendingPaymentsCount,
+    pendingPaymentsAmountDzd,
     ademSalesCount: ademSales.length,
     abdouSalesCount: abdouSales.length,
     ademProfitDzd,
     abdouProfitDzd,
     averageSaleProfitDzd,
+    totalMessagesCount,
+    averageCpmDzd,
   };
+}
+
+export interface ParsedStockItem {
+  productName?: string;
+  key: string;
+}
+
+/**
+ * Parses raw text from CSV file or clipboard paste.
+ * Supports:
+ * 1. Comma / semicolon / tab separated: "Canva Pro, https://canva.com/brand/join?..."
+ * 2. Raw list of keys/links (one per line) for a selected product.
+ */
+export function parseImportedStock(rawText: string, defaultProductName?: string): ParsedStockItem[] {
+  if (!rawText || !rawText.trim()) return [];
+
+  const lines = rawText
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0 && !l.startsWith('#'));
+
+  const results: ParsedStockItem[] = [];
+
+  for (const line of lines) {
+    // Check if line contains a separator (comma, semicolon, or tab)
+    let parts: string[] = [];
+    if (line.includes('\t')) {
+      parts = line.split('\t').map((p) => p.trim());
+    } else if (line.includes(';')) {
+      parts = line.split(';').map((p) => p.trim());
+    } else if (line.includes(',')) {
+      // Avoid splitting inside URLs if comma appears in URL query
+      const firstCommaIdx = line.indexOf(',');
+      parts = [line.slice(0, firstCommaIdx).trim(), line.slice(firstCommaIdx + 1).trim()];
+    }
+
+    if (parts.length >= 2 && parts[0].length > 0 && parts[1].length > 0) {
+      // Ignore header row if present (e.g. "Product, Link" or "Name, Key")
+      const lower0 = parts[0].toLowerCase();
+      const lower1 = parts[1].toLowerCase();
+      if ((lower0 === 'product' || lower0 === 'produit' || lower0 === 'name') &&
+          (lower1 === 'key' || lower1 === 'link' || lower1 === 'activation' || lower1 === 'cle')) {
+        continue;
+      }
+      results.push({
+        productName: parts[0],
+        key: parts[1],
+      });
+    } else {
+      // Single key / link per line
+      results.push({
+        productName: defaultProductName,
+        key: line,
+      });
+    }
+  }
+
+  return results;
 }

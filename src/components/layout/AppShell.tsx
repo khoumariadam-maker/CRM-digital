@@ -9,8 +9,12 @@ import Sidebar from './Sidebar';
 import MobileNav from './MobileNav';
 import FastSaleModal from '@/components/modals/FastSaleModal';
 import CreateProductModal from '@/components/modals/CreateProductModal';
+import ExpenseModal from '@/components/modals/ExpenseModal';
+import DailyAdSpendModal from '@/components/modals/DailyAdSpendModal';
+import CaisseModal from '@/components/modals/CaisseModal';
+import StockImportModal from '@/components/modals/StockImportModal';
 import PinLoginScreen from '@/components/auth/PinLoginScreen';
-import { CheckCircle2, Sparkles } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 
 function AppShellInner({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isReady } = useAuth();
@@ -19,6 +23,14 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     closeSaleModal,
     isProductModalOpen,
     closeProductModal,
+    isExpenseModalOpen,
+    closeExpenseModal,
+    isAdSpendModalOpen,
+    closeAdSpendModal,
+    isCaisseModalOpen,
+    closeCaisseModal,
+    isStockImportModalOpen,
+    closeStockImportModal,
     toastMessage,
   } = useCRMData();
 
@@ -64,6 +76,22 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       <CreateProductModal
         isOpen={isProductModalOpen}
         onClose={closeProductModal}
+      />
+      <ExpenseModal
+        isOpen={isExpenseModalOpen}
+        onClose={closeExpenseModal}
+      />
+      <DailyAdSpendModal
+        isOpen={isAdSpendModalOpen}
+        onClose={closeAdSpendModal}
+      />
+      <CaisseModal
+        isOpen={isCaisseModalOpen}
+        onClose={closeCaisseModal}
+      />
+      <StockImportModal
+        isOpen={isStockImportModalOpen}
+        onClose={closeStockImportModal}
       />
 
       {/* Global Toast Notification */}

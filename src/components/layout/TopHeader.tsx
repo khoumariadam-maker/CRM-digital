@@ -13,6 +13,7 @@ import {
   Lock,
   Wifi,
   WifiOff,
+  Calendar,
 } from 'lucide-react';
 
 export default function TopHeader() {
@@ -28,6 +29,13 @@ export default function TopHeader() {
 
   const [isEditingRate, setIsEditingRate] = useState(false);
   const [rateInput, setRateInput] = useState(exchangeRate.toString());
+
+  // Current day and date display
+  const todayFormatted = new Intl.DateTimeFormat('fr-DZ', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  }).format(new Date());
 
   const handleSaveRate = async () => {
     const val = parseNumericInput(rateInput);
@@ -73,6 +81,12 @@ export default function TopHeader() {
               {activePartner === 'Abdou' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
               <span>Abdou</span>
             </button>
+          </div>
+
+          {/* Current Date Display */}
+          <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-full bg-slate-900 border border-white/10 text-[10px] sm:text-[11px] font-semibold text-slate-300 shrink-0">
+            <Calendar className="w-3 h-3 text-blue-400 shrink-0" />
+            <span className="capitalize">{todayFormatted}</span>
           </div>
 
           {/* Cloud Sync Status Indicator */}

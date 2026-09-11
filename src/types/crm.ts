@@ -2,7 +2,17 @@ export type Currency = 'DZD' | 'USD';
 
 export type PartnerName = 'Adem' | 'Abdou';
 
-export type PaymentMethod = 'baridimob' | 'ccp' | 'paysera' | 'wise' | 'cash';
+export type PaymentMethod = 
+  | 'baridimob' 
+  | 'ccp' 
+  | 'banque' 
+  | 'redotpay' 
+  | 'binance' 
+  | 'cash' 
+  | 'paysera' 
+  | 'wise';
+
+export type PaymentStatus = 'paid' | 'pending';
 
 export interface PartnerUser {
   id: string;
@@ -17,10 +27,12 @@ export interface Sale {
   productId?: string;
   sellingPriceDzd: number; // Customer price in DA
   productCostUsd: number; // Purchase / sourcing cost in USD
-  metaAdCostUsd: number; // Ad spend / lead cost for this sale in USD
-  netProfitDzd: number; // Real profit: sellingPriceDzd - (productCostUsd * rate) - (metaAdCostUsd * rate)
+  metaAdCostUsd?: number; // Legacy or per-sale ad cost (optional now)
+  netProfitDzd: number; // Gross profit for this sale: sellingPriceDzd - (productCostUsd * rate)
   soldBy: PartnerName; // 'Adem' or 'Abdou'
   paymentMethod: PaymentMethod;
+  paymentStatus?: PaymentStatus; // 'paid' | 'pending' (upcoming payment / crédit)
+  pendingNote?: string; // e.g. "Will pay tonight via BaridiMob"
   customerName?: string; // Optional
   customerPhone?: string; // Optional
   deliveredKey?: string; // Optional license key or credentials
@@ -29,15 +41,71 @@ export interface Sale {
   createdAt: string;
 }
 
+export interface StockItem {
+  id: string;
+  keyOrLink: string;
+  addedAt: string;
+  expiresAt?: string; // Optional ISO expiration timestamp
+}
+
 export interface Product {
   id: string;
   name: string;
   category: string;
   defaultCostUsd: number; // Default purchase cost
   defaultSellingDzd: number; // Default selling price
-  stockKeys: string[]; // Unused keys ready to deliver
+  stockKeys: string[]; // Unused keys/links (1 link = 1 stock item)
+  stockItems?: StockItem[]; // Detailed items with addedAt and optional expiration
+  lowStockThreshold?: number; // Alert threshold (defaults to 2)
   description?: string;
   createdAt: string;
+}
+
+export type ExpenseCategory = 'ads' | 'proxy' | 'tools' | 'supplier' | 'cards' | 'other';
+
+export interface Expense {
+  id: string;
+  title: string;
+  amountDzd: number;
+  amountUsd?: number;
+  currency: Currency;
+  category: ExpenseCategory;
+  paidBy: PartnerName;
+  date: string; // YYYY-MM-DD
+  notes?: string;
+  createdAt: string;
+}
+
+export interface DailyAdSpend {
+  id: string;
+  date: string; // YYYY-MM-DD
+  spendUsd: number;
+  spendDzd: number;
+  messagesCount: number;
+  cpmDzd: number; // Cost per message in DA
+  cpaDzd: number; // Cost per acquired sale in DA
+  salesCount: number; // Number of sales logged that day
+  loggedBy: PartnerName;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface DailyCaisse {
+  id: string;
+  date: string; // YYYY-MM-DD
+  status: 'open' | 'closed';
+  openedAt: string;
+  openedBy: PartnerName;
+  initialBalanceDzd: number; // Opening cash / BaridiMob float in DA
+  initialBalanceUsd: number; // Opening card balance for ads / stock in USD
+  closedAt?: string;
+  closedBy?: PartnerName;
+  closingBalanceDzd?: number;
+  closingBalanceUsd?: number;
+  expectedBalanceDzd?: number;
+  totalSalesDzd?: number;
+  totalExpensesDzd?: number;
+  notes?: string;
 }
 
 export interface FirebaseConfig {
@@ -56,13 +124,20 @@ export interface FinancialSummary {
   totalProductCostUsd: number;
   totalMetaAdSpendDzd: number;
   totalMetaAdSpendUsd: number;
+  totalExpensesDzd: number;
+  totalExpensesUsd: number;
   netProfitDzd: number;
   netProfitUsd: number;
   profitMarginPercent: number;
   salesCount: number;
+  paidSalesCount: number;
+  pendingPaymentsCount: number;
+  pendingPaymentsAmountDzd: number;
   ademSalesCount: number;
   abdouSalesCount: number;
   ademProfitDzd: number;
   abdouProfitDzd: number;
   averageSaleProfitDzd: number;
+  totalMessagesCount: number;
+  averageCpmDzd: number;
 }

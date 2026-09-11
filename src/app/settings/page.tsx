@@ -27,10 +27,14 @@ export default function SettingsPage() {
     lastSyncedAt,
     firebaseConfig,
     resetToDefault,
+    resetToFresh,
     updateExchangeRate,
     syncAllDataToCloud,
     sales,
     products,
+    expenses,
+    dailyAdSpends,
+    dailyCaisses,
     showToast,
   } = useCRMData();
   const { exchangeRate } = useCurrency();
@@ -58,11 +62,14 @@ export default function SettingsPage() {
 
   const handleDownloadBackup = () => {
     const backup = {
-      version: 2,
+      version: 3,
       date: new Date().toISOString(),
       exchangeRate,
       sales,
       products,
+      expenses,
+      dailyAdSpends,
+      dailyCaisses,
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -340,7 +347,19 @@ export default function SettingsPage() {
           </label>
         </div>
 
-        <div className="pt-2">
+        <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              if (confirm('Start completely fresh? This will clear all test/demo sales and start with clean production records.')) {
+                resetToFresh();
+              }
+            }}
+            className="py-2.5 px-4 rounded-xl bg-slate-900 border border-emerald-500/30 text-xs font-bold text-emerald-300 hover:text-white transition-colors cursor-pointer w-full sm:w-auto"
+          >
+            ✨ Start Fresh (Clean Production Slate)
+          </button>
+
           <button
             type="button"
             onClick={() => {
@@ -348,9 +367,9 @@ export default function SettingsPage() {
                 resetToDefault();
               }
             }}
-            className="w-full py-2.5 text-xs text-slate-400 hover:text-red-400 transition-colors cursor-pointer"
+            className="py-2.5 px-4 text-xs text-slate-500 hover:text-red-400 transition-colors cursor-pointer"
           >
-            Reset to default initial data
+            Reset default templates
           </button>
         </div>
       </div>

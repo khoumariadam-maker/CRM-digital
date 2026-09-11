@@ -199,17 +199,58 @@ DzDigital CRM delivers a streamlined, mobile-first web app enabling **Adem** and
 | **Backend Database** | Supabase (PostgreSQL) | Google Firebase Firestore | 100% permanently free Spark tier; native real-time sync (`onSnapshot`); zero SQL migration maintenance. |
 | **Firebase Config** | Per-device LocalStorage form | Code config (`firebaseConfig.ts` + `.env.local`) | Guarantees all partner phones automatically connect to the exact same cloud database without manual setup. |
 | **Authentication** | Passwords or email magic links | 4-digit PIN codes (Adem: 1234, Abdou: 5678) | Sub-second mobile login with zero friction; perfectly matches the two-partner business model. |
-| **Ad Spend Model** | Aggregated daily ad budget table | Per-sale Meta ad attribution | Direct attribution provides instant, unambiguous net profit per sale and per partner. |
+| **Ad Spend Model** | Per-sale Meta ad attribution | End-of-Day Daily Ad Spend logger | Eliminates per-sale friction (reduces sale entry to <3s); auto-calculates Cost Per Message (CPM) and Cost Per Acquisition (CPA). |
 | **Exchange Rate** | Central Bank API | User-editable Square rate | Bank rates in Algeria (e.g. ~134 DA) do not match actual black market sourcing costs (~242 DA). |
 | **Form UX** | Multi-step wizard | Single modal with accordions & sticky footer | Sellers need to log sales in under 10 seconds while mid-chat on their phone without keyboard clipping. |
 | **Navigation** | Desktop sidebar only | Mobile bottom nav + FAB | 90%+ of sales entries occur directly on mobile devices. |
+| **Cash Control** | Unrecorded cash flow | 24-Hour Caisse (Ouverture & Clôture) | Accurately tracks working capital in BaridiMob/Cash and USD cards to prevent ad account pauses. |
+
+---
+
+### Phase 10: Antigravity Multi-Agent Architecture & Operations Evolution
+* **Antigravity Multi-Agent System Setup**:
+  - Configured project-level [AGENTS.md](file:///d:/projex/crm/AGENTS.md) with 4 collaborative personas:
+    - **Lead Architect**: Leads off every conversation, aligning goals with project roadmap.
+    - **Backend, Security & Reliability Engineer**: Enforces Firestore zero-crash rules, 4-digit PIN security, and data consistency.
+    - **Mobile UI/UX Specialist**: Enforces touch targets, sticky footers (`pb-safe`), and high-contrast dark aesthetic.
+    - **Financial & Domain Operations Auditor**: Enforces Square parallel rate arithmetic, payment channels, and register reconciliation.
+  - Created workspace skill [crm-architect](file:///d:/projex/crm/.agents/skills/crm-architect/SKILL.md) auto-binding to `/crm-architect`.
+* **Features Implemented (Voice Note Specifications)**:
+  1. **Streamlined Fast Sale (<3 seconds)**:
+     - Removed per-sale ad input; sellers only select product and price.
+     - Added payment methods: `BaridiMob`, `CCP`, `Banque`, `RedotPay`, `Binance`, `Cash`.
+     - Client credentials are fully optional.
+     - Added **Upcoming Payment / Pay Later (Crédit)** toggle with custom note and a 1-tap **"Encaissé (Mark as Paid)"** action on Dashboard and Orders.
+  2. **End-of-Day Ad Spend & Automated CPM/CPA**:
+     - Dedicated modal to record daily Meta ad spend in USD or DZD with messages count.
+     - Automatically computes Cost Per Message (CPM in DA) and Cost Per Acquisition (CPA in DA).
+  3. **Dépenses (Daily Expenses Tracking)**:
+     - Real-time expense tracker for operating overhead (proxies, SIM recharges, supplier payments, cards, tools).
+  4. **Ouverture & Clôture de Caisse (24h Register Shift)**:
+     - Opening shift modal recording initial float in DA and USD cards.
+     - End-of-day closing reconciliation comparing theoretical balance with counted cash.
+   5. **Stock Management & 1 Link = 1 Stock Item Model**:
+      - **1 Link = 1 Stock Unit Item**: Uploading 4 activation links deposits exactly 4 stock items in vault.
+      - **Stock Alert System**: High-contrast alerts for `🚨 Rupture de Stock` (0 links), `⚠️ Stock Faible` (≤2 links), and `✅ En Stock` (>2 links) across Dashboard banner, Products catalog, and Fast Sale modal.
+      - **Catalog Filter Tabs**: Instant filtering by `Tous`, `🚨 Rupture`, `⚠️ Stock Faible`, and `✅ En Stock`.
+      - **Optional Link Expiration Controls**:
+        - Presets for `24h`, `48h`, `7 Jours`, `30 Jours`, or `Personnalisé (custom days input)` in both CSV/Paste Import and manual vault deposit modals.
+        - Per-link validity badges (`Expiré` or remaining days) and warning in FastSaleModal if an expired link is selected.
+   6. **Stock Importation (CSV & 1-Click "Ready to Paste")**:
+      - Upload CSV files or 1-click paste from clipboard with inline selling price in DA and sourcing cost in USD to calculate unit and batch margins.
+   7. **Daily Growth Progress Graph**:
+      - Visual analytics component plotting daily revenue, net profit, and order trends.
+   8. **Clean Production Slate**:
+      - Removed mock sales and added "Start Fresh" button in Settings for zero-dummy production deployment.
+* **Build Verification**:
+  - Compiled production build with `npm run build` $\rightarrow$ **Exit Code 0** (0 errors, 7/7 routes generated).
 
 ---
 
 ## Future Roadmap & Enhancements
 
 1. **Telegram Bot Integration**:
-   - Optional bot webhook allowing Adem & Abdou to log sales via a quick Telegram command (e.g., `/sale Canva 2800 3.00 1.50`).
+   - Optional bot webhook allowing Adem & Abdou to log sales via a quick Telegram command (e.g., `/sale Canva 2800`).
 2. **Automated WhatsApp Business Webhook**:
    - Automatic dispatch of license keys upon BaridiMob notification parsing.
 3. **Daily Profit Summary Push Notifications**:
@@ -220,3 +261,4 @@ DzDigital CRM delivers a streamlined, mobile-first web app enabling **Adem** and
 ---
 
 *Log completed and certified for production readiness by DeepMind Antigravity Agent.*
+

@@ -12,13 +12,15 @@ import {
   Check,
   MessageCircle,
   Trash2,
+  Clock,
+  CheckCircle2,
 } from 'lucide-react';
 
 export default function SalesPage() {
-  const { sales, deleteSale, openSaleModal } = useCRMData();
+  const { sales, deleteSale, markSaleAsPaid, openSaleModal } = useCRMData();
   const { format, exchangeRate } = useCurrency();
 
-  const [partnerFilter, setPartnerFilter] = useState<'All' | 'Adem' | 'Abdou'>('All');
+  const [partnerFilter, setPartnerFilter] = useState<'All' | 'Adem' | 'Abdou' | 'Pending'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -28,15 +30,23 @@ export default function SalesPage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const pendingSalesCount = sales.filter((s) => s.paymentStatus === 'pending').length;
+
   const filteredSales = sales.filter((s) => {
-    const matchesPartner = partnerFilter === 'All' || s.soldBy === partnerFilter;
+    let matchesFilter = true;
+    if (partnerFilter === 'Pending') {
+      matchesFilter = s.paymentStatus === 'pending';
+    } else if (partnerFilter !== 'All') {
+      matchesFilter = s.soldBy === partnerFilter;
+    }
+
     const matchesSearch =
       s.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (s.customerName && s.customerName.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (s.customerPhone && s.customerPhone.includes(searchQuery)) ||
       s.saleNumber.includes(searchQuery);
 
-    return matchesPartner && matchesSearch;
+    return matchesFilter && matchesSearch;
   });
 
   return (
@@ -50,7 +60,7 @@ export default function SalesPage() {
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-white">Digital Sales Tracker</h1>
           <p className="text-xs text-slate-400">
-            Real profit per sale with sourcing costs, Meta ads, and partner attribution.
+            Real profit per sale with sourcing costs, payment channels, and pending payment tracking.
           </p>
         </div>
 
@@ -64,15 +74,15 @@ export default function SalesPage() {
         </button>
       </div>
 
-      {/* Partner Tabs & Search */}
+      {/* Tabs & Search */}
       <div className="space-y-2.5">
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
           {(['All', 'Adem', 'Abdou'] as const).map((tab) => (
             <button
               key={tab}
               type="button"
               onClick={() => setPartnerFilter(tab)}
-              className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+              className={`py-2.5 rounded-xl text-xs font-bold transition-all border cursor-pointer truncate ${
                 partnerFilter === tab
                   ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/30'
                   : 'bg-slate-950 text-slate-400 border-white/10 hover:border-white/20'
@@ -81,6 +91,22 @@ export default function SalesPage() {
               {tab === 'All' ? `All (${sales.length})` : `${tab} (${sales.filter((s) => s.soldBy === tab).length})`}
             </button>
           ))}
+
+          {/* Pending / Pay Later Filter Tab */}
+          <button
+            type="button"
+            onClick={() => setPartnerFilter('Pending')}
+            className={`py-2.5 rounded-xl text-xs font-bold transition-all border cursor-pointer truncate flex items-center justify-center gap-1 ${
+              partnerFilter === 'Pending'
+                ? 'bg-amber-600 text-white border-amber-500 shadow-md shadow-amber-600/30'
+                : pendingSalesCount > 0
+                ? 'bg-amber-950/40 text-amber-300 border-amber-500/30 hover:border-amber-400'
+                : 'bg-slate-950 text-slate-500 border-white/10'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>À Payer ({pendingSalesCount})</span>
+          </button>
         </div>
 
         {/* Search Input */}
@@ -106,8 +132,8 @@ export default function SalesPage() {
           </div>
         ) : (
           filteredSales.map((sale) => {
+            const isPending = sale.paymentStatus === 'pending';
             const productCostDzd = Math.round(sale.productCostUsd * (sale.exchangeRateUsed || exchangeRate));
-            const metaAdDzd = Math.round(sale.metaAdCostUsd * (sale.exchangeRateUsed || exchangeRate));
 
             const waLink = generateWhatsAppLink(
               sale.customerPhone,
@@ -119,7 +145,9 @@ export default function SalesPage() {
             return (
               <div
                 key={sale.id}
-                className="p-3.5 sm:p-5 rounded-2xl glass-card border border-white/10 space-y-3"
+                className={`p-3.5 sm:p-5 rounded-2xl glass-card border space-y-3 ${
+                  isPending ? 'border-amber-500/40 bg-amber-950/10' : 'border-white/10'
+                }`}
               >
                 {/* Top Info */}
                 <div className="flex items-center justify-between text-xs">
@@ -136,101 +164,114 @@ export default function SalesPage() {
                     >
                       {sale.soldBy}
                     </span>
-                  </div>
 
-                  <span className="capitalize px-2.5 py-0.5 rounded-full bg-slate-950 text-[10px] font-semibold text-slate-300 border border-white/5">
-                    {sale.paymentMethod === 'baridimob' ? 'BaridiMob' : sale.paymentMethod}
-                  </span>
-                </div>
-
-                {/* Product & Financials */}
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-sm sm:text-base font-bold text-white leading-tight">
-                      {sale.productName}
-                    </h3>
-                    {sale.customerName && (
-                      <span className="text-xs text-slate-400 mt-0.5 block">
-                        Client: {sale.customerName} {sale.customerPhone ? `(${sale.customerPhone})` : ''}
+                    {isPending ? (
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                        <Clock className="w-3 h-3" />
+                        <span>Paiement en attente</span>
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>Payé</span>
                       </span>
                     )}
                   </div>
 
+                  <span className="capitalize px-2 py-0.5 rounded bg-slate-950 text-[10px] font-semibold text-slate-400 border border-white/5">
+                    {sale.paymentMethod}
+                  </span>
+                </div>
+
+                {/* Product & Financials */}
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h3 className="text-base font-bold text-white">{sale.productName}</h3>
+                    {sale.customerName && (
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Client: <span className="text-slate-300 font-medium">{sale.customerName}</span>
+                        {sale.customerPhone && ` • ${sale.customerPhone}`}
+                      </p>
+                    )}
+                    {isPending && sale.pendingNote && (
+                      <p className="text-[11px] text-amber-400/90 italic mt-1">
+                        Note: {sale.pendingNote}
+                      </p>
+                    )}
+                  </div>
+
                   <div className="text-right shrink-0">
-                    <div className="text-sm sm:text-base font-black text-white">
-                      {format(sale.sellingPriceDzd)}
+                    <div className="text-base sm:text-lg font-black text-white">
+                      {sale.sellingPriceDzd.toLocaleString()} DA
                     </div>
-                    <div className={`text-xs sm:text-sm font-black ${sale.netProfitDzd >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {sale.netProfitDzd >= 0 ? `+${format(sale.netProfitDzd)}` : format(sale.netProfitDzd)} Net
-                    </div>
-                  </div>
-                </div>
-
-                {/* Direct Costs Breakdown */}
-                <div className="grid grid-cols-2 gap-2 text-xs bg-slate-950/80 p-2.5 rounded-xl border border-white/5">
-                  <div>
-                    <span className="text-[10px] text-slate-400 block uppercase">Product Cost</span>
-                    <span className="font-semibold text-slate-200">
-                      ${sale.productCostUsd} <span className="text-[10px] text-slate-400">({productCostDzd} DA)</span>
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 block uppercase">Meta Ad Spend</span>
-                    <span className="font-semibold text-indigo-300">
-                      ${sale.metaAdCostUsd} <span className="text-[10px] text-slate-400">({metaAdDzd} DA)</span>
+                    <span className="text-[10px] text-emerald-400 font-bold block">
+                      +{sale.netProfitDzd.toLocaleString()} DA gross
                     </span>
                   </div>
                 </div>
 
-                {/* Delivered Key */}
+                {/* License Key Display (if delivered) */}
                 {sale.deliveredKey && (
-                  <div className="p-2.5 rounded-xl bg-slate-950 border border-emerald-500/20 flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <span className="text-[10px] text-slate-400 block">Delivered Key / Login:</span>
-                      <span className="text-xs font-mono text-emerald-300 truncate block">
-                        {sale.deliveredKey}
-                      </span>
-                    </div>
+                  <div className="p-2.5 rounded-xl bg-slate-950 border border-white/5 flex items-center justify-between gap-2 text-xs font-mono text-emerald-300">
+                    <span className="truncate">{sale.deliveredKey}</span>
                     <button
                       type="button"
                       onClick={() => handleCopy(sale.deliveredKey!, sale.id)}
-                      className="p-1.5 text-slate-400 hover:text-white shrink-0 cursor-pointer"
+                      className="p-1 text-slate-400 hover:text-white shrink-0 cursor-pointer"
                       title="Copy Key"
                     >
                       {copiedId === sale.id ? (
-                        <Check className="w-4 h-4 text-emerald-400" />
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
                       ) : (
-                        <Copy className="w-4 h-4" />
+                        <Copy className="w-3.5 h-3.5" />
                       )}
                     </button>
                   </div>
                 )}
 
-                {/* Bottom Action Row */}
+                {/* Bottom Actions */}
                 <div className="flex items-center justify-between pt-2 border-t border-white/5 text-xs">
-                  <span className="text-slate-400 font-mono text-[11px]">
-                    {sale.createdAt.split('T')[0]}
-                  </span>
+                  {/* Mark as paid button if pending */}
+                  {isPending ? (
+                    <button
+                      type="button"
+                      onClick={() => markSaleAsPaid(sale.id)}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-600/20 active:scale-95 transition-all"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Encaissé (Mark as Paid)</span>
+                    </button>
+                  ) : (
+                    <span className="text-[10px] text-slate-500">
+                      {new Date(sale.createdAt).toLocaleString([], {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  )}
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 ml-auto">
                     {sale.customerPhone && (
                       <a
                         href={waLink}
                         target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600/20 text-emerald-400 text-xs font-bold border border-emerald-500/30 hover:bg-emerald-600/30 active:scale-95 transition-all"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 text-[11px] font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 px-2.5 py-1.5 rounded-lg border border-emerald-500/20"
                       >
-                        <MessageCircle className="w-3.5 h-3.5" />
+                        <MessageCircle className="w-3 h-3" />
                         <span>WhatsApp</span>
                       </a>
                     )}
+
                     <button
                       type="button"
                       onClick={() => deleteSale(sale.id)}
-                      className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                      className="p-1.5 text-slate-500 hover:text-red-400 transition-colors cursor-pointer"
                       title="Delete sale"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>

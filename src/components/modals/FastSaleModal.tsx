@@ -3,18 +3,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useCRMData } from '@/context/CRMDataContext';
 import { useCurrency } from '@/context/CurrencyContext';
-import { PartnerName, PaymentMethod } from '@/types/crm';
-import { calculateSaleNetProfit, convertUsdToDzd, parseNumericInput, formatSignedProfit } from '@/lib/calculations';
+import { PartnerName, PaymentMethod, PaymentStatus } from '@/types/crm';
+import { convertUsdToDzd, parseNumericInput, formatSignedProfit } from '@/lib/calculations';
 import {
   X,
   ShoppingBag,
   ChevronDown,
   ChevronUp,
-  CheckCircle2,
   Sparkles,
   UserCheck,
   Key,
-  ShieldAlert,
+  Clock,
+  CheckCircle2,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface FastSaleModalProps {
@@ -30,9 +31,12 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
   const [customProductName, setCustomProductName] = useState('');
   const [sellingPriceDzd, setSellingPriceDzd] = useState<string>('1800');
   const [productCostUsd, setProductCostUsd] = useState<string>('4.00');
-  const [metaAdCostUsd, setMetaAdCostUsd] = useState<string>('1.50');
   const [soldBy, setSoldBy] = useState<PartnerName>(activePartner);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('baridimob');
+
+  // Upcoming Payment / Pay Later
+  const [isPayLater, setIsPayLater] = useState<boolean>(false);
+  const [pendingNote, setPendingNote] = useState('');
 
   // Key vault delivery
   const [deliverKeyFromVault, setDeliverKeyFromVault] = useState<boolean>(true);
@@ -48,6 +52,8 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
   // Initialize form state when modal opens
   const initializeForm = useCallback(() => {
     setSoldBy(activePartner);
+    setIsPayLater(false);
+    setPendingNote('');
     setShowOptional(false);
     setCustomerName('');
     setCustomerPhone('');
@@ -59,7 +65,6 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
       setCustomProductName('');
       setSellingPriceDzd(first.defaultSellingDzd.toString());
       setProductCostUsd(first.defaultCostUsd.toString());
-      setMetaAdCostUsd('1.50');
 
       if (first.stockKeys && first.stockKeys.length > 0) {
         setDeliverKeyFromVault(true);
@@ -73,7 +78,6 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
       setCustomProductName('');
       setSellingPriceDzd('1800');
       setProductCostUsd('4.00');
-      setMetaAdCostUsd('1.50');
       setDeliverKeyFromVault(false);
       setDeliveredKey('');
     }
@@ -90,6 +94,24 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
   const currentProduct = products.find((p) => p.id === selectedProductId);
   const hasStockKeys = Boolean(currentProduct?.stockKeys && currentProduct.stockKeys.length > 0);
   const availableKeysCount = currentProduct?.stockKeys?.length || 0;
+  const isOutOfStock = Boolean(currentProduct && availableKeysCount === 0);
+  const isLowStock = Boolean(
+    currentProduct && availableKeysCount > 0 && availableKeysCount <= (currentProduct.lowStockThreshold ?? 2)
+  );
+
+  // Check expiration of the selected/delivered key
+  const deliveredStockItem = currentProduct?.stockItems?.find((it) => it.keyOrLink === deliveredKey);
+  const isDeliveredExpired = Boolean(
+    deliveredStockItem?.expiresAt && new Date(deliveredStockItem.expiresAt).getTime() < Date.now()
+  );
+  const deliveredExpiryDate = deliveredStockItem?.expiresAt
+    ? new Date(deliveredStockItem.expiresAt).toLocaleDateString('fr-FR', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : null;
 
   const handleProductSelect = (prodId: string) => {
     setSelectedProductId(prodId);
@@ -113,20 +135,12 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
     }
   };
 
-  // Real-time calculation with safe numeric parsing (handling commas e.g. "4,50")
+  // Real-time calculation of Unit Gross Profit
   const parsedPriceDzd = parseNumericInput(sellingPriceDzd);
   const parsedProductCostUsd = parseNumericInput(productCostUsd);
-  const parsedMetaAdUsd = parseNumericInput(metaAdCostUsd);
-
-  const { netProfitDzd, netProfitUsd, marginPercent } = calculateSaleNetProfit(
-    parsedPriceDzd,
-    parsedProductCostUsd,
-    parsedMetaAdUsd,
-    exchangeRate
-  );
-
   const productCostDzd = convertUsdToDzd(parsedProductCostUsd, exchangeRate);
-  const metaAdCostDzd = convertUsdToDzd(parsedMetaAdUsd, exchangeRate);
+  const unitGrossProfitDzd = parsedPriceDzd - productCostDzd;
+  const marginPercent = parsedPriceDzd > 0 ? Math.round((unitGrossProfitDzd / parsedPriceDzd) * 100) : 0;
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -147,16 +161,17 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
         finalName = currentProduct ? currentProduct.name : 'Digital Product';
       }
 
-      const finalKey = deliverKeyFromVault && deliveredKey.trim() ? deliveredKey.trim() : undefined;
+      const finalKey = deliveredKey.trim() ? deliveredKey.trim() : undefined;
 
       await addSale({
         productName: finalName,
         productId: selectedProductId !== 'custom' ? selectedProductId : undefined,
         sellingPriceDzd: parsedPriceDzd,
         productCostUsd: parsedProductCostUsd,
-        metaAdCostUsd: parsedMetaAdUsd,
         soldBy,
         paymentMethod,
+        paymentStatus: isPayLater ? 'pending' : 'paid',
+        pendingNote: isPayLater && pendingNote.trim() ? pendingNote.trim() : undefined,
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
         deliveredKey: finalKey,
@@ -171,10 +186,19 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
     }
   };
 
+  const paymentMethods: { id: PaymentMethod; label: string; badge: string }[] = [
+    { id: 'baridimob', label: 'BaridiMob', badge: 'bg-amber-500/10 text-amber-300 border-amber-500/30' },
+    { id: 'ccp', label: 'CCP', badge: 'bg-blue-500/10 text-blue-300 border-blue-500/30' },
+    { id: 'banque', label: 'Banque', badge: 'bg-purple-500/10 text-purple-300 border-purple-500/30' },
+    { id: 'redotpay', label: 'RedotPay', badge: 'bg-rose-500/10 text-rose-300 border-rose-500/30' },
+    { id: 'binance', label: 'Binance', badge: 'bg-yellow-500/10 text-yellow-300 border-yellow-500/30' },
+    { id: 'cash', label: 'Cash', badge: 'bg-slate-500/10 text-slate-300 border-slate-500/30' },
+  ];
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
       <div className="relative w-full max-w-lg bg-slate-900 border border-white/10 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92dvh] sm:max-h-[88vh] overflow-hidden">
-        {/* Sticky Modal Header */}
+        {/* Sticky Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10 bg-slate-900/95 backdrop-blur shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center">
@@ -182,7 +206,7 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
             </div>
             <div>
               <h2 className="text-sm sm:text-base font-bold text-white leading-tight">Log Digital Sale</h2>
-              <p className="text-[11px] text-slate-400">Track price, sourcing cost & Meta ads</p>
+              <p className="text-[11px] text-slate-400">Fast 3-second recording for Adem & Abdou</p>
             </div>
           </div>
           <button
@@ -195,7 +219,7 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
           </button>
         </div>
 
-        {/* Scrollable Form Body with Momentum Scrolling */}
+        {/* Scrollable Form Body */}
         <form
           id="sale-form"
           onSubmit={handleSubmit}
@@ -244,11 +268,20 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
               onChange={(e) => handleProductSelect(e.target.value)}
               className="w-full bg-slate-950 border border-white/10 rounded-xl px-3.5 py-3 text-xs sm:text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer"
             >
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.defaultSellingDzd.toLocaleString()} DA • ${p.defaultCostUsd})
-                </option>
-              ))}
+              {products.map((p) => {
+                const stock = p.stockKeys?.length || 0;
+                const statusTag =
+                  stock === 0
+                    ? '🚨 RUPTURE (0 item)'
+                    : stock <= (p.lowStockThreshold ?? 2)
+                    ? `⚠️ FAIBLE (${stock} items)`
+                    : `✅ (${stock} items)`;
+                return (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.defaultSellingDzd.toLocaleString()} DA) — [{statusTag}]
+                  </option>
+                );
+              })}
               <option value="custom">✏️ Enter custom product title...</option>
             </select>
 
@@ -264,16 +297,20 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
             )}
           </div>
 
-          {/* Key Vault Delivery Status (if product has stock) */}
+          {/* Key Vault Delivery Status (1 link = 1 stock item) */}
           {selectedProductId !== 'custom' && (
-            <div className="p-3 rounded-xl bg-slate-950 border border-white/5 space-y-2">
+            <div className="p-3 rounded-xl bg-slate-950 border border-white/5 space-y-2.5">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
                   <Key className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>License Key Vault</span>
+                  <span>Activation Link (1 lien = 1 article)</span>
                   <span
                     className={`px-1.5 py-0.2 rounded text-[10px] font-mono font-bold ${
-                      hasStockKeys ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'
+                      availableKeysCount > 0
+                        ? isLowStock
+                          ? 'bg-amber-500/20 text-amber-300'
+                          : 'bg-emerald-500/20 text-emerald-300'
+                        : 'bg-red-500/20 text-red-300'
                     }`}
                   >
                     {availableKeysCount} in stock
@@ -288,49 +325,89 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
                       onChange={(e) => setDeliverKeyFromVault(e.target.checked)}
                       className="rounded border-white/20 text-emerald-600 focus:ring-0 cursor-pointer"
                     />
-                    <span className="text-[11px] text-slate-300">Deliver Key</span>
+                    <span className="text-[11px] text-slate-300">Auto-Deliver</span>
                   </label>
                 )}
               </div>
 
-              {hasStockKeys && deliverKeyFromVault && (
+              {/* Stock Alerts inside Fast Sale */}
+              {isOutOfStock && (
+                <div className="p-2.5 rounded-xl bg-red-950/30 border border-red-500/30 text-xs text-red-300 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block text-red-200">🚨 ALERTE RUPTURE DE STOCK</strong>
+                    <span>
+                      Ce produit n&apos;a aucun lien en stock (0 article). Collez un lien manuellement ci-dessous ou livrez le client ultérieurement.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {isLowStock && (
+                <div className="p-2 rounded-xl bg-amber-950/30 border border-amber-500/30 text-[11px] text-amber-300 flex items-center gap-2">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>
+                    ⚠️ <strong>Stock Faible:</strong> Seulement {availableKeysCount}{' '}
+                    {availableKeysCount <= 1 ? 'lien restant' : 'liens restants'} (1 lien = 1 article).
+                  </span>
+                </div>
+              )}
+
+              {/* Input for key / link */}
+              {hasStockKeys && deliverKeyFromVault ? (
+                <div className="space-y-1">
+                  <input
+                    type="text"
+                    value={deliveredKey}
+                    onChange={(e) => setDeliveredKey(e.target.value)}
+                    placeholder="Key or link to deliver..."
+                    className="w-full bg-slate-900 border border-emerald-500/30 rounded-lg px-2.5 py-1.5 text-xs font-mono text-emerald-300 focus:outline-none focus:border-emerald-500"
+                  />
+                  {deliveredExpiryDate && (
+                    <div className="flex items-center gap-1.5 text-[10px] pt-0.5">
+                      <Clock className="w-3 h-3 text-indigo-400" />
+                      <span className={isDeliveredExpired ? 'text-red-400 font-bold' : 'text-indigo-300'}>
+                        {isDeliveredExpired ? '⚠️ Ce lien est EXPIRÉ !' : `Validité : Expire le ${deliveredExpiryDate}`}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : !hasStockKeys ? (
                 <input
                   type="text"
                   value={deliveredKey}
                   onChange={(e) => setDeliveredKey(e.target.value)}
-                  placeholder="Key to deliver..."
-                  className="w-full bg-slate-900 border border-emerald-500/30 rounded-lg px-2.5 py-1.5 text-xs font-mono text-emerald-300 focus:outline-none focus:border-emerald-500"
+                  placeholder="Coller un lien ou clé manuellement (optionnel)..."
+                  className="w-full bg-slate-900 border border-white/10 rounded-lg px-2.5 py-2 text-xs font-mono text-emerald-300 placeholder-slate-600 focus:outline-none focus:border-blue-500"
                 />
-              )}
+              ) : null}
             </div>
           )}
 
-          {/* Selling Price (DA) */}
-          <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
-              Selling Price (DA) *
-            </label>
-            <div className="relative">
-              <input
-                type="number"
-                inputMode="numeric"
-                step="any"
-                required
-                value={sellingPriceDzd}
-                onChange={(e) => setSellingPriceDzd(e.target.value)}
-                placeholder="e.g. 1800"
-                className="w-full bg-slate-950 border border-white/10 rounded-xl pl-3.5 pr-12 py-2.5 text-base font-bold text-white focus:outline-none focus:border-emerald-500"
-              />
-              <span className="absolute right-3.5 top-3 text-xs font-bold text-slate-400">DA</span>
-            </div>
-          </div>
-
-          {/* Sourcing Cost & Meta Ad Cost (2-Column Grid on Mobile) */}
+          {/* Selling Price & Sourcing Cost */}
           <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-            {/* Product Purchase Cost */}
             <div>
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
-                Product Cost ($) *
+                Selling Price (DA) *
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  step="any"
+                  required
+                  value={sellingPriceDzd}
+                  onChange={(e) => setSellingPriceDzd(e.target.value)}
+                  placeholder="e.g. 1800"
+                  className="w-full bg-slate-950 border border-white/10 rounded-xl pl-3.5 pr-10 py-2.5 text-base font-bold text-white focus:outline-none focus:border-emerald-500"
+                />
+                <span className="absolute right-3 top-3 text-xs font-bold text-slate-400">DA</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
+                Product Cost ($)
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2.5 text-slate-400 text-xs font-bold">$</span>
@@ -349,139 +426,148 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
                 ≈ {productCostDzd.toLocaleString()} DA
               </span>
             </div>
-
-            {/* Meta Ad Cost */}
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
-                Meta Ad Cost ($) *
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-2.5 text-slate-400 text-xs font-bold">$</span>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  step="any"
-                  min="0"
-                  required
-                  value={metaAdCostUsd}
-                  onChange={(e) => setMetaAdCostUsd(e.target.value)}
-                  className="w-full bg-slate-950 border border-white/10 rounded-xl pl-7 pr-3 py-2 text-xs sm:text-sm font-semibold text-white focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-1 block truncate">
-                ≈ {metaAdCostDzd.toLocaleString()} DA
-              </span>
-            </div>
           </div>
 
-          {/* LIVE NET PROFIT PREVIEW CARD */}
+          {/* Unit Margin Indicator */}
           <div className="p-3 rounded-2xl bg-gradient-to-r from-emerald-950/50 via-slate-950 to-slate-900 border border-emerald-500/30 flex items-center justify-between">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
                 <Sparkles className="w-4 h-4" />
               </div>
               <div className="min-w-0">
-                <span className="text-[10px] text-slate-400 font-semibold block">Net Profit:</span>
-                <div className={`text-sm sm:text-base font-black truncate ${netProfitDzd >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {formatSignedProfit(netProfitDzd, 'DZD')}{' '}
-                  <span className="text-[11px] text-slate-400 font-normal">
-                    ({formatSignedProfit(netProfitDzd, 'USD', netProfitUsd)})
-                  </span>
+                <span className="text-[10px] text-slate-400 font-semibold block">Unit Gross Profit:</span>
+                <div className={`text-sm sm:text-base font-black truncate ${unitGrossProfitDzd >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {formatSignedProfit(unitGrossProfitDzd, 'DZD')}
                 </div>
               </div>
             </div>
             <div className="text-right shrink-0">
               <span className="text-[10px] text-slate-400 block">Margin</span>
-              <div className={`text-xs sm:text-sm font-black ${marginPercent >= 35 ? 'text-emerald-400' : marginPercent > 0 ? 'text-amber-400' : 'text-red-400'}`}>
+              <div className="text-xs sm:text-sm font-black text-emerald-400">
                 {marginPercent}%
               </div>
             </div>
           </div>
 
-          {/* Payment Method */}
+          {/* Payment Method Selector */}
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-              Payment Method
+              Payment Method *
             </label>
-            <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
-              {(['baridimob', 'ccp', 'paysera', 'wise', 'cash'] as PaymentMethod[]).map((pm) => (
+            <div className="grid grid-cols-3 gap-2">
+              {paymentMethods.map((pm) => (
                 <button
                   type="button"
-                  key={pm}
-                  onClick={() => setPaymentMethod(pm)}
-                  className={`py-2 px-1 rounded-xl text-[10px] sm:text-xs font-bold capitalize border transition-all cursor-pointer text-center truncate ${
-                    paymentMethod === pm
-                      ? 'bg-blue-600 text-white border-blue-500 shadow-sm ring-1 ring-blue-400/50'
-                      : 'bg-slate-950 text-slate-400 border-white/10 hover:border-white/20'
+                  key={pm.id}
+                  onClick={() => setPaymentMethod(pm.id)}
+                  className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer truncate ${
+                    paymentMethod === pm.id
+                      ? `${pm.badge} ring-2 ring-white/20 font-extrabold shadow-sm`
+                      : 'bg-slate-950 text-slate-400 border-white/5 hover:border-white/20'
                   }`}
                 >
-                  {pm === 'baridimob' ? 'Baridi' : pm}
+                  {pm.label}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Toggle Optional Customer Details */}
-          <button
-            type="button"
-            onClick={() => setShowOptional(!showOptional)}
-            className="flex items-center justify-between w-full py-2.5 text-xs font-semibold text-slate-400 hover:text-slate-200 border-t border-white/5 cursor-pointer"
-          >
-            <span>Optional Customer Info & Notes</span>
-            {showOptional ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
+          {/* Upcoming Payment / Pay Later (Crédit) Toggle */}
+          <div className="p-3 rounded-2xl bg-slate-950/80 border border-amber-500/20 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-bold text-amber-300">
+                <Clock className="w-4 h-4 text-amber-400" />
+                <span>Upcoming Payment / Pay Later (Crédit)</span>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isPayLater}
+                  onChange={(e) => setIsPayLater(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+              </label>
+            </div>
 
-          {/* Optional Accordion */}
-          {showOptional && (
-            <div className="space-y-3 pt-1 animate-fade-in">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">Customer Name (Optional)</label>
+            {isPayLater && (
+              <div className="pt-1">
+                <input
+                  type="text"
+                  placeholder="Quick note (e.g. Will pay tonight via BaridiMob)..."
+                  value={pendingNote}
+                  onChange={(e) => setPendingNote(e.target.value)}
+                  className="w-full bg-slate-900 border border-amber-500/40 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                />
+                <p className="text-[10px] text-amber-400/80 mt-1">
+                  Sale will be tagged as &quot;Pending Payment&quot; with a 1-tap &quot;Mark as Paid&quot; button in Orders.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Collapsible Customer Info (Non-Obligatory) */}
+          <div className="border-t border-white/5 pt-2">
+            <button
+              type="button"
+              onClick={() => setShowOptional(!showOptional)}
+              className="w-full py-2 flex items-center justify-between text-xs font-semibold text-slate-400 hover:text-slate-200 cursor-pointer"
+            >
+              <span>+ Customer Contact & Notes (Optional)</span>
+              {showOptional ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+
+            {showOptional && (
+              <div className="space-y-3 pt-2 animate-fade-in">
+                <div className="grid grid-cols-2 gap-2.5">
                   <input
                     type="text"
-                    placeholder="e.g. Karim"
+                    placeholder="Customer name..."
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                    className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
                   />
-                </div>
-                <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">Phone / WhatsApp (Optional)</label>
                   <input
                     type="tel"
                     inputMode="tel"
-                    placeholder="0550... / 06... / 07..."
+                    placeholder="Phone (05/06/07...)"
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
-                    className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                    className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] text-slate-400 mb-1">Sale Notes (Optional)</label>
                 <input
                   type="text"
-                  placeholder="e.g. BaridiMob receipt validated"
+                  placeholder="Additional delivery notes..."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
                 />
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </form>
 
-        {/* Sticky Modal Footer with Confirm & Save Button */}
+        {/* Sticky Action Footer */}
         <div className="p-4 border-t border-white/10 bg-slate-900/95 backdrop-blur shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <button
-            type="button"
-            onClick={() => handleSubmit()}
+            type="submit"
+            form="sale-form"
             disabled={isSubmitting}
-            className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-black text-sm shadow-xl shadow-emerald-600/30 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            className={`w-full py-3.5 rounded-xl font-bold text-sm shadow-xl active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              isPayLater
+                ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-600/30'
+                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
+            }`}
           >
-            <CheckCircle2 className="w-5 h-5" />
-            <span>{isSubmitting ? 'Saving Sale...' : 'Confirm & Save Sale'}</span>
+            <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
+            <span>
+              {isSubmitting
+                ? 'Saving...'
+                : isPayLater
+                ? `Confirm Sale (${parsedPriceDzd.toLocaleString()} DA - Pay Later)`
+                : `Confirm & Save Sale (+${unitGrossProfitDzd.toLocaleString()} DA)`}
+            </span>
           </button>
         </div>
       </div>
