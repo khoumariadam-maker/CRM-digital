@@ -314,6 +314,25 @@ DzDigital CRM delivers a streamlined, mobile-first web app enabling **Adem** and
 
 ---
 
+### Phase 12: Sales Auto-Delivery, Expiry Invalidation & Daily WhatsApp Report
+* **Feature 1: Auto-Delivery on Sale (`FastSaleModal.tsx`)**:
+  - Automatically selects the first non-expired stock link/key from vault on product selection.
+  - Upon sale submission, key is deducted atomically from stock and a post-submission confirmation screen displays the delivered key with 1-tap `📋 Copier le Code / Lien` and direct WhatsApp messaging link.
+  - Sanitized product filtering (`validProducts`) prevents any runtime `toLowerCase` undefined crashes.
+* **Feature 2: Stock Expiry Alerts & Dead Link Invalidation**:
+  - Added `expiringStockItems` and `removeExpiredStockKeys` to `CRMDataContext.tsx`.
+  - Added high-visibility expiry badge countdowns (`EXPIRÉ`, `⚠️ Expire dans Xh`, `✓ Xj restants`) in `products/page.tsx` with disabled copy on dead keys.
+  - Added 1-tap `Supprimer les liens expirés` clean-up button per product vault.
+  - Added real-time expiry warning banner on main dashboard (`app/page.tsx`) linking straight to stock management.
+* **Feature 3: Daily Business Report Card (`DailyReportCard.tsx`)**:
+  - Beautiful modal summary displaying paid sales count, pending credits, daily revenue, net profit, Meta ads spend, BaridiMob balance, and remaining stock.
+  - Pre-formatted 1-tap WhatsApp clipboard copier (`📋 Copier le Rapport WhatsApp`) formatted with Algerian emojis and DZD formatting.
+  - Accessible via prominent `📊 Rapport du Jour (WhatsApp)` button on dashboard.
+* **Build Verification**:
+  - `npm run build` verified with Turbopack $\rightarrow$ **Exit Code 0** (0 errors, 7/7 routes generated).
+
+---
+
 ## Future Roadmap & Enhancements
 
 1. **Telegram Bot Integration**:

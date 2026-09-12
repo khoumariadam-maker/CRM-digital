@@ -20,8 +20,27 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 
+function getExpiryStatus(expiresAt?: string): {
+  label: string;
+  color: string;
+  isExpired: boolean;
+  isExpiringSoon: boolean;
+} {
+  if (!expiresAt) return { label: '', color: '', isExpired: false, isExpiringSoon: false };
+  const exp = new Date(expiresAt);
+  const now = new Date();
+  const in24h = new Date(Date.now() + 24 * 3600 * 1000);
+  if (exp <= now) return { label: 'EXPIRÉ', color: 'text-red-400 bg-red-950/50 border-red-500/30', isExpired: true, isExpiringSoon: false };
+  if (exp <= in24h) {
+    const hoursLeft = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 3600));
+    return { label: `⚠️ Expire dans ${hoursLeft}h`, color: 'text-amber-300 bg-amber-950/40 border-amber-500/30', isExpired: false, isExpiringSoon: true };
+  }
+  const daysLeft = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 3600 * 24));
+  return { label: `✓ ${daysLeft}j restants`, color: 'text-emerald-400 bg-emerald-950/30 border-emerald-500/20', isExpired: false, isExpiringSoon: false };
+}
+
 export default function ProductsPage() {
-  const { products, deleteProduct, addStockKeys, openProductModal, openStockImportModal } = useCRMData();
+  const { products, deleteProduct, addStockKeys, openProductModal, openStockImportModal, removeExpiredStockKeys } = useCRMData();
   const { format, exchangeRate } = useCurrency();
 
   const [selectedProdForKeys, setSelectedProdForKeys] = useState<string | null>(null);
@@ -328,18 +347,16 @@ export default function ProductsPage() {
                     {prod.stockKeys.slice(0, 4).map((k, idx) => {
                       // Find matched stockItem with expiry
                       const stockItem = prod.stockItems?.find((item) => item.keyOrLink === k);
-                      const isExpired = stockItem?.expiresAt && new Date(stockItem.expiresAt).getTime() < Date.now();
-                      const expiryLabel = stockItem?.expiresAt
-                        ? new Date(stockItem.expiresAt).toLocaleDateString('fr-FR', {
-                            day: 'numeric',
-                            month: 'short',
-                          })
-                        : null;
+                      const expiry = getExpiryStatus(stockItem?.expiresAt);
 
                       return (
                         <div
                           key={idx}
-                          className="p-1.5 rounded-lg bg-slate-950 border border-white/5 flex items-center justify-between text-[11px] font-mono text-emerald-300 gap-2"
+                          className={`p-1.5 rounded-lg border flex items-center justify-between text-[11px] font-mono gap-2 ${
+                            expiry.isExpired
+                              ? 'bg-red-950/20 border-red-500/20 opacity-60 text-red-300'
+                              : 'bg-slate-950 border-white/5 text-emerald-300'
+                          }`}
                         >
                           <div className="flex items-center gap-1.5 min-w-0 flex-1">
                             <span className="text-[10px] font-bold text-slate-500 shrink-0">
@@ -349,24 +366,25 @@ export default function ProductsPage() {
                           </div>
 
                           <div className="flex items-center gap-1.5 shrink-0">
-                            {expiryLabel && (
+                            {expiry.label && (
                               <span
-                                className={`px-1.5 py-0.5 rounded text-[9px] font-sans font-bold flex items-center gap-1 ${
-                                  isExpired
-                                    ? 'bg-red-500/20 text-red-300 border border-red-500/30'
-                                    : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                                }`}
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-sans font-bold flex items-center gap-1 border ${expiry.color}`}
                               >
                                 <Clock className="w-2.5 h-2.5" />
-                                <span>{isExpired ? 'Expiré' : `Exp: ${expiryLabel}`}</span>
+                                <span>{expiry.label}</span>
                               </span>
                             )}
 
                             <button
                               type="button"
                               onClick={() => handleCopy(k)}
-                              className="p-1 text-slate-400 hover:text-white rounded hover:bg-white/10 cursor-pointer"
-                              title="Copier le lien"
+                              disabled={expiry.isExpired}
+                              className={`p-1 rounded transition-colors cursor-pointer ${
+                                expiry.isExpired
+                                  ? 'text-slate-600 cursor-not-allowed'
+                                  : 'text-slate-400 hover:text-white hover:bg-white/10'
+                              }`}
+                              title={expiry.isExpired ? 'Lien expiré' : 'Copier le lien'}
                             >
                               {copiedKey === k ? (
                                 <Check className="w-3 h-3 text-emerald-400" />
@@ -382,6 +400,18 @@ export default function ProductsPage() {
                       <span className="text-[10px] text-slate-500 block text-center pt-0.5 font-medium">
                         +{keysCount - 4} autres articles/liens dans le stock
                       </span>
+                    )}
+
+                    {/* Remove expired button */}
+                    {(prod.stockItems || []).some((item) => item.expiresAt && new Date(item.expiresAt) <= new Date()) && (
+                      <button
+                        type="button"
+                        onClick={() => removeExpiredStockKeys(prod.id)}
+                        className="w-full mt-2 py-2 rounded-xl border border-red-500/30 text-xs font-bold text-red-400 hover:text-red-300 hover:bg-red-950/30 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Supprimer les liens expirés</span>
+                      </button>
                     )}
                   </div>
                 ) : (

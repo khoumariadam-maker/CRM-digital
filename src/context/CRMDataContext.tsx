@@ -84,6 +84,17 @@ interface CRMDataContextType {
   addStockKeys: (productId: string, keys: string[], expiresAt?: string) => Promise<void>;
   bulkImportKeys: (entries: { productId: string; keys: string[]; expiresAt?: string }[]) => Promise<number>;
   lowStockProducts: Product[];
+  expiringStockItems: {
+    id: string;
+    keyOrLink: string;
+    addedAt: string;
+    expiresAt?: string;
+    productName: string;
+    productId: string;
+    isExpired: boolean;
+    isExpiringSoon: boolean;
+  }[];
+  removeExpiredStockKeys: (productId: string) => Promise<void>;
 
   // Expenses operations
   addExpense: (expenseData: Omit<Expense, 'id' | 'createdAt'>) => Promise<Expense>;
@@ -998,12 +1009,60 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
       .filter((p) => (p.stockKeys?.length || 0) <= (p.lowStockThreshold ?? 2));
   }, [products]);
 
+  // Stock items expiring within 24 hours or already expired
+  const expiringStockItems = useMemo(() => {
+    const in24h = new Date(Date.now() + 24 * 3600 * 1000);
+    const now = new Date();
+    return products
+      .flatMap((p) =>
+        (p.stockItems || [])
+          .filter((item) => item.expiresAt)
+          .map((item) => ({
+            ...item,
+            productName: p.name,
+            productId: p.id,
+            isExpired: new Date(item.expiresAt!) <= now,
+            isExpiringSoon: new Date(item.expiresAt!) <= in24h && new Date(item.expiresAt!) > now,
+          }))
+      )
+      .filter((item) => item.isExpired || item.isExpiringSoon);
+  }, [products]);
+
+  const removeExpiredStockKeys = async (productId: string): Promise<void> => {
+    const now = new Date();
+    let updatedKeys: string[] = [];
+    let updatedItems: StockItem[] = [];
+
+    setProducts((prev) =>
+      prev.map((p) => {
+        if (p.id !== productId) return p;
+        updatedItems = (p.stockItems || []).filter(
+          (item) => !item.expiresAt || new Date(item.expiresAt) > now
+        );
+        updatedKeys = updatedItems.map((item) => item.keyOrLink);
+        return { ...p, stockKeys: updatedKeys, stockItems: updatedItems };
+      })
+    );
+    showToast('Liens expirés supprimés du stock.');
+
+    const db = getFirebaseDb();
+    if (db) {
+      setDoc(
+        doc(db, 'products', productId),
+        cleanForFirestore({ stockKeys: updatedKeys, stockItems: updatedItems }),
+        { merge: true }
+      ).catch(() => {});
+    }
+  };
+
   return (
     <CRMDataContext.Provider
       value={{
         sales,
         products,
         lowStockProducts,
+        expiringStockItems,
+        removeExpiredStockKeys,
         expenses,
         dailyAdSpends,
         dailyCaisses,

@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { useCRMData } from '@/context/CRMDataContext';
 import { useCurrency } from '@/context/CurrencyContext';
 import { generateWhatsAppLink } from '@/lib/calculations';
 import GrowthChart from '@/components/dashboard/GrowthChart';
+import DailyReportCard from '@/components/DailyReportCard';
 import {
   Landmark,
   Plus,
@@ -21,11 +23,16 @@ import {
   ChevronUp,
   ShoppingBag,
   ExternalLink,
+  AlertTriangle,
+  ChevronRight,
+  BarChart3,
 } from 'lucide-react';
 
 export default function DashboardPage() {
   const {
     sales,
+    products,
+    expiringStockItems,
     financials,
     deleteSale,
     markSaleAsPaid,
@@ -44,6 +51,7 @@ export default function DashboardPage() {
   const [feedTab, setFeedTab] = useState<'pending' | 'confirmed'>('pending');
   const [showChart, setShowChart] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isReportOpen, setIsReportOpen] = useState<boolean>(false);
 
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -65,11 +73,30 @@ export default function DashboardPage() {
     return financials.baridiMobCurrentBalanceDzd ?? (startingCapitalDzd + financials.netProfitDzd);
   }, [financials, startingCapitalDzd]);
 
+  // Stock remaining (non-expired keys across products)
+  const stockRemaining = useMemo(() => {
+    const now = new Date();
+    return products.reduce((total, p) => {
+      const validKeys = (p.stockItems || []).filter(
+        (item) => !item.expiresAt || new Date(item.expiresAt) > now
+      ).length;
+      return total + (validKeys || p.stockKeys?.length || 0);
+    }, 0);
+  }, [products]);
+
   // Today's Date String
   const todayDateStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   const todayPaidSales = useMemo(
     () => paidSales.filter((s) => s.createdAt.startsWith(todayDateStr)),
     [paidSales, todayDateStr]
+  );
+  const todayPendingSales = useMemo(
+    () => pendingSales.filter((s) => s.createdAt.startsWith(todayDateStr)),
+    [pendingSales, todayDateStr]
+  );
+  const todayRevenueDzd = useMemo(
+    () => todayPaidSales.reduce((sum, s) => sum + (s.sellingPriceDzd || 0), 0),
+    [todayPaidSales]
   );
   const todayAdsSpend = useMemo(
     () =>
@@ -136,6 +163,26 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {/* Stock Expiry Alert Banner */}
+      {expiringStockItems && expiringStockItems.length > 0 && (
+        <Link href="/products" className="block">
+          <div className="p-3.5 rounded-2xl bg-red-950/30 border border-red-500/40 flex items-center justify-between gap-2 active:scale-[0.99] transition-transform hover:bg-red-950/40">
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
+              <div>
+                <p className="text-xs font-black text-red-300">
+                  {expiringStockItems.filter((i) => i.isExpired).length > 0
+                    ? `🚨 ${expiringStockItems.filter((i) => i.isExpired).length} lien(s) de stock expiré(s)`
+                    : `⚠️ ${expiringStockItems.filter((i) => i.isExpiringSoon).length} lien(s) expirent dans moins de 24h`}
+                </p>
+                <p className="text-[10px] text-red-400/80 mt-0.5">Appuyez pour gérer le stock →</p>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-red-400 shrink-0" />
+          </div>
+        </Link>
+      )}
+
       {/* 2. PRIMARY ACTION: BIG FAST SALE BUTTON */}
       <div className="space-y-2">
         <button
@@ -167,6 +214,15 @@ export default function DashboardPage() {
             <span>+ Log Dépense</span>
           </button>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setIsReportOpen(true)}
+          className="w-full py-2.5 px-4 rounded-xl bg-slate-900/60 hover:bg-slate-800/80 border border-white/5 hover:border-emerald-500/30 text-slate-300 hover:text-white text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer min-h-[44px]"
+        >
+          <BarChart3 className="w-4 h-4 text-emerald-400" />
+          <span>📊 Rapport du Jour (WhatsApp)</span>
+        </button>
       </div>
 
       {/* 3. SEGMENTED ORDERS FEED: À ENCAISSER vs CONFIRMÉES */}
@@ -496,6 +552,20 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Daily Report Card Modal */}
+      <DailyReportCard
+        isOpen={isReportOpen}
+        onClose={() => setIsReportOpen(false)}
+        date={new Date().toLocaleDateString('fr-DZ', { day: 'numeric', month: 'long', year: 'numeric' })}
+        salesCount={todayPaidSales.length}
+        pendingCount={todayPendingSales.length}
+        revenueDzd={todayRevenueDzd}
+        netProfitDzd={financials.todayProfitDzd || 0}
+        metaAdsDzd={todayAdsSpend}
+        baridiMobBalanceDzd={baridiMobBalance}
+        stockRemaining={stockRemaining}
+      />
     </div>
   );
 }

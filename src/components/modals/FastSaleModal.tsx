@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useCRMData } from '@/context/CRMDataContext';
 import { useCurrency } from '@/context/CurrencyContext';
-import { PartnerName, PaymentMethod, PaymentStatus } from '@/types/crm';
-import { convertUsdToDzd, parseNumericInput, formatSignedProfit } from '@/lib/calculations';
+import { PartnerName, PaymentMethod, PaymentStatus, Product, Sale } from '@/types/crm';
+import { convertUsdToDzd, parseNumericInput, formatSignedProfit, generateWhatsAppLink } from '@/lib/calculations';
 import {
   X,
   ShoppingBag,
@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   Copy,
   Check,
+  MessageCircle,
 } from 'lucide-react';
 
 interface FastSaleModalProps {
@@ -28,6 +29,14 @@ interface FastSaleModalProps {
 export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
   const { products, addSale, activePartner } = useCRMData();
   const { exchangeRate } = useCurrency();
+
+  const validProducts = useMemo(
+    () =>
+      products.filter(
+        (p): p is Product => Boolean(p && typeof p.name === 'string' && p.name.trim().length > 0)
+      ),
+    [products]
+  );
 
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [customProductName, setCustomProductName] = useState('');
@@ -51,9 +60,11 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
   const [customerPhone, setCustomerPhone] = useState('');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittedSale, setSubmittedSale] = useState<Sale | null>(null);
 
   // Initialize form state when modal opens
   const initializeForm = useCallback(() => {
+    setSubmittedSale(null);
     setSoldBy(activePartner);
     setIsPayLater(false);
     setPendingNote('');
@@ -62,16 +73,23 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
     setCustomerPhone('');
     setNotes('');
 
-    if (products.length > 0) {
-      const first = products[0];
+    if (validProducts.length > 0) {
+      const first = validProducts[0];
       setSelectedProductId(first.id);
       setCustomProductName('');
       setSellingPriceDzd(first.defaultSellingDzd.toString());
       setProductCostUsd(first.defaultCostUsd.toString());
 
-      if (first.stockKeys && first.stockKeys.length > 0) {
+      // Auto-select first non-expired stock item
+      const now = new Date();
+      const firstValidItem = (first.stockItems || []).find(
+        (item) => !item.expiresAt || new Date(item.expiresAt) > now
+      );
+      const firstValidKey = firstValidItem?.keyOrLink || first.stockKeys?.[0] || '';
+
+      if (firstValidKey) {
         setDeliverKeyFromVault(true);
-        setDeliveredKey(first.stockKeys[0]);
+        setDeliveredKey(firstValidKey);
       } else {
         setDeliverKeyFromVault(false);
         setDeliveredKey('');
@@ -84,7 +102,7 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
       setDeliverKeyFromVault(false);
       setDeliveredKey('');
     }
-  }, [activePartner, products]);
+  }, [activePartner, validProducts]);
 
   useEffect(() => {
     if (isOpen) {
@@ -92,9 +110,28 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
     }
   }, [isOpen, initializeForm]);
 
+  // Auto-pick first non-expired key whenever selectedProductId changes
+  useEffect(() => {
+    if (!selectedProductId || selectedProductId === 'custom') return;
+    const prod = validProducts.find((p) => p.id === selectedProductId);
+    if (!prod) return;
+    const now = new Date();
+    const firstValidItem = (prod.stockItems || []).find(
+      (item) => !item.expiresAt || new Date(item.expiresAt) > now
+    );
+    const firstValidKey = firstValidItem?.keyOrLink || prod.stockKeys?.[0] || '';
+    if (firstValidKey) {
+      setDeliverKeyFromVault(true);
+      setDeliveredKey(firstValidKey);
+    } else {
+      setDeliverKeyFromVault(false);
+      setDeliveredKey('');
+    }
+  }, [selectedProductId, validProducts]);
+
   if (!isOpen) return null;
 
-  const currentProduct = products.find((p) => p.id === selectedProductId);
+  const currentProduct = validProducts.find((p) => p.id === selectedProductId);
   const hasStockKeys = Boolean(currentProduct?.stockKeys && currentProduct.stockKeys.length > 0);
   const availableKeysCount = currentProduct?.stockKeys?.length || 0;
   const isOutOfStock = Boolean(currentProduct && availableKeysCount === 0);
@@ -124,13 +161,18 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
       setDeliveredKey('');
       return;
     }
-    const p = products.find((item) => item.id === prodId);
+    const p = validProducts.find((item) => item.id === prodId);
     if (p) {
       setSellingPriceDzd(p.defaultSellingDzd.toString());
       setProductCostUsd(p.defaultCostUsd.toString());
-      if (p.stockKeys && p.stockKeys.length > 0) {
+      const now = new Date();
+      const firstValidItem = (p.stockItems || []).find(
+        (item) => !item.expiresAt || new Date(item.expiresAt) > now
+      );
+      const firstValidKey = firstValidItem?.keyOrLink || p.stockKeys?.[0] || '';
+      if (firstValidKey) {
         setDeliverKeyFromVault(true);
-        setDeliveredKey(p.stockKeys[0]);
+        setDeliveredKey(firstValidKey);
       } else {
         setDeliverKeyFromVault(false);
         setDeliveredKey('');
@@ -166,7 +208,7 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
 
       const finalKey = deliveredKey.trim() ? deliveredKey.trim() : undefined;
 
-      await addSale({
+      const createdSale = await addSale({
         productName: finalName,
         productId: selectedProductId !== 'custom' ? selectedProductId : undefined,
         sellingPriceDzd: parsedPriceDzd,
@@ -181,7 +223,7 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
         notes: notes.trim() || undefined,
       });
 
-      onClose();
+      setSubmittedSale(createdSale);
     } catch (err) {
       console.error('Failed to add sale:', err);
     } finally {
@@ -208,13 +250,20 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
               <ShoppingBag className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-sm sm:text-base font-bold text-white leading-tight">Log Digital Sale</h2>
-              <p className="text-[11px] text-slate-400">Fast 3-second recording for Adem & Abdou</p>
+              <h2 className="text-sm sm:text-base font-bold text-white leading-tight">
+                {submittedSale ? 'Vente Confirmée' : 'Log Digital Sale'}
+              </h2>
+              <p className="text-[11px] text-slate-400">
+                {submittedSale ? 'Code et détails de livraison' : 'Fast 3-second recording for Adem & Abdou'}
+              </p>
             </div>
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => {
+              setSubmittedSale(null);
+              onClose();
+            }}
             className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
             aria-label="Close modal"
           >
@@ -222,407 +271,475 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
           </button>
         </div>
 
-        {/* Scrollable Form Body */}
-        <form
-          id="sale-form"
-          onSubmit={handleSubmit}
-          className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 overscroll-contain"
-        >
-          {/* Partner Selector (Adem vs Abdou) */}
-          <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-              Sold By *
-            </label>
-            <div className="grid grid-cols-2 gap-2.5">
-              <button
-                type="button"
-                onClick={() => setSoldBy('Adem')}
-                className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all border cursor-pointer flex items-center justify-center gap-1.5 ${
-                  soldBy === 'Adem'
-                    ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/30 ring-2 ring-blue-400/40'
-                    : 'bg-slate-950 text-slate-400 border-white/10 hover:border-white/20'
-                }`}
-              >
-                {soldBy === 'Adem' && <UserCheck className="w-3.5 h-3.5" />}
-                <span>Adem</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setSoldBy('Abdou')}
-                className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all border cursor-pointer flex items-center justify-center gap-1.5 ${
-                  soldBy === 'Abdou'
-                    ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/30 ring-2 ring-emerald-400/40'
-                    : 'bg-slate-950 text-slate-400 border-white/10 hover:border-white/20'
-                }`}
-              >
-                {soldBy === 'Abdou' && <UserCheck className="w-3.5 h-3.5" />}
-                <span>Abdou</span>
-              </button>
+        {submittedSale ? (
+          <div className="flex flex-col items-center justify-center gap-5 p-6 text-center animate-fade-in overflow-y-auto max-h-[85vh]">
+            <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500/50 flex items-center justify-center">
+              <CheckCircle2 className="w-8 h-8 text-emerald-400" />
             </div>
-          </div>
+            <div>
+              <h3 className="text-lg font-black text-white">Vente Enregistrée !</h3>
+              <p className="text-xs text-slate-400 mt-1">
+                {submittedSale.saleNumber} — {submittedSale.productName}
+              </p>
+              <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-bold">
+                <span>{submittedSale.sellingPriceDzd.toLocaleString()} DA</span>
+                <span>•</span>
+                <span className="uppercase">{submittedSale.paymentMethod}</span>
+              </div>
+            </div>
 
-          {/* Product Selection */}
-          <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-              Digital Product *
-            </label>
-            <select
-              value={selectedProductId}
-              onChange={(e) => handleProductSelect(e.target.value)}
-              className="w-full bg-slate-950 border border-white/10 rounded-xl px-3.5 py-3 text-xs sm:text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer"
-            >
-              {products
-                .filter((p) => p && typeof p.name === 'string' && p.name.trim().length > 0)
-                .map((p) => {
-                  const stock = p.stockKeys?.length || 0;
-                  const statusTag =
-                    stock === 0
-                      ? '🚨 RUPTURE (0 item)'
-                      : stock <= (p.lowStockThreshold ?? 2)
-                      ? `⚠️ FAIBLE (${stock} items)`
-                      : `✅ (${stock} items)`;
-                  return (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({(p.defaultSellingDzd || 0).toLocaleString()} DA) — [{statusTag}]
-                    </option>
-                  );
-                })}
-              <option value="custom">✏️ Enter custom product title...</option>
-            </select>
+            {/* Delivered Key / Link — prominent display */}
+            {submittedSale.deliveredKey && (
+              <div className="w-full p-4 rounded-xl bg-slate-950 border border-emerald-500/30 space-y-3">
+                <p className="text-xs font-bold text-emerald-400 uppercase tracking-wide">🔑 Lien / Code Délivré</p>
+                <p className="text-xs font-mono text-emerald-300 break-all select-all leading-relaxed p-3 rounded-lg bg-slate-900 border border-white/5">
+                  {submittedSale.deliveredKey}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(submittedSale.deliveredKey!);
+                    setIsKeyCopied(true);
+                    setTimeout(() => setIsKeyCopied(false), 2500);
+                  }}
+                  className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-sm font-black flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  {isKeyCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  <span>{isKeyCopied ? 'Copié ✓' : '📋 Copier le Code / Lien'}</span>
+                </button>
 
-            {selectedProductId === 'custom' && (
-              <input
-                type="text"
-                required
-                placeholder="Type digital product title..."
-                value={customProductName}
-                onChange={(e) => setCustomProductName(e.target.value)}
-                className="w-full bg-slate-950 border border-blue-500/50 rounded-xl px-3.5 py-2.5 text-xs text-white mt-2 focus:outline-none focus:border-blue-500"
-              />
+                {/* WhatsApp Quick Send */}
+                {submittedSale.customerPhone && (
+                  <a
+                    href={generateWhatsAppLink(
+                      submittedSale.customerPhone,
+                      `Salam! Vos accès pour *${submittedSale.productName}*:\n🔑 ${submittedSale.deliveredKey}\n\nMerci pour votre confiance! 🙏`
+                    )}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full py-3.5 rounded-xl bg-[#25D366]/20 border border-[#25D366]/40 text-[#25D366] text-sm font-bold flex items-center justify-center gap-2 hover:bg-[#25D366]/30 transition-colors"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>Envoyer via WhatsApp</span>
+                  </a>
+                )}
+              </div>
             )}
-          </div>
 
-          {/* Key Vault Delivery Status (1 link = 1 stock item) */}
-          {selectedProductId !== 'custom' && (
-            <div className="p-3 rounded-xl bg-slate-950 border border-white/5 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
-                  <Key className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Activation Link (1 lien = 1 article)</span>
-                  <span
-                    className={`px-1.5 py-0.2 rounded text-[10px] font-mono font-bold ${
-                      availableKeysCount > 0
-                        ? isLowStock
-                          ? 'bg-amber-500/20 text-amber-300'
-                          : 'bg-emerald-500/20 text-emerald-300'
-                        : 'bg-red-500/20 text-red-300'
+            <button
+              type="button"
+              onClick={() => {
+                setSubmittedSale(null);
+                onClose();
+              }}
+              className="w-full py-3.5 rounded-xl bg-slate-900 border border-white/10 text-slate-300 text-sm font-bold hover:text-white transition-colors cursor-pointer"
+            >
+              Fermer
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Scrollable Form Body */}
+            <form
+              id="sale-form"
+              onSubmit={handleSubmit}
+              className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 overscroll-contain"
+            >
+              {/* Partner Selector (Adem vs Abdou) */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Sold By *
+                </label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setSoldBy('Adem')}
+                    className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all border cursor-pointer flex items-center justify-center gap-1.5 ${
+                      soldBy === 'Adem'
+                        ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/30 ring-2 ring-blue-400/40'
+                        : 'bg-slate-950 text-slate-400 border-white/10 hover:border-white/20'
                     }`}
                   >
-                    {availableKeysCount} in stock
-                  </span>
+                    {soldBy === 'Adem' && <UserCheck className="w-3.5 h-3.5" />}
+                    <span>Adem</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSoldBy('Abdou')}
+                    className={`py-2.5 px-4 rounded-xl text-xs font-bold transition-all border cursor-pointer flex items-center justify-center gap-1.5 ${
+                      soldBy === 'Abdou'
+                        ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/30 ring-2 ring-emerald-400/40'
+                        : 'bg-slate-950 text-slate-400 border-white/10 hover:border-white/20'
+                    }`}
+                  >
+                    {soldBy === 'Abdou' && <UserCheck className="w-3.5 h-3.5" />}
+                    <span>Abdou</span>
+                  </button>
                 </div>
+              </div>
 
-                {hasStockKeys && (
-                  <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={deliverKeyFromVault}
-                      onChange={(e) => setDeliverKeyFromVault(e.target.checked)}
-                      className="rounded border-white/20 text-emerald-600 focus:ring-0 cursor-pointer"
-                    />
-                    <span className="text-[11px] text-slate-300">Auto-Deliver</span>
-                  </label>
+              {/* Product Selection */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Digital Product *
+                </label>
+                <select
+                  value={selectedProductId}
+                  onChange={(e) => handleProductSelect(e.target.value)}
+                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-3.5 py-3 text-xs sm:text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer"
+                >
+                  {validProducts.map((p) => {
+                    const stock = p.stockKeys?.length || 0;
+                    const statusTag =
+                      stock === 0
+                        ? '🚨 RUPTURE (0 item)'
+                        : stock <= (p.lowStockThreshold ?? 2)
+                        ? `⚠️ FAIBLE (${stock} items)`
+                        : `✅ (${stock} items)`;
+                    return (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({(p.defaultSellingDzd || 0).toLocaleString()} DA) — [{statusTag}]
+                      </option>
+                    );
+                  })}
+                  <option value="custom">✏️ Enter custom product title...</option>
+                </select>
+
+                {selectedProductId === 'custom' && (
+                  <input
+                    type="text"
+                    required
+                    placeholder="Type digital product title..."
+                    value={customProductName}
+                    onChange={(e) => setCustomProductName(e.target.value)}
+                    className="w-full bg-slate-950 border border-blue-500/50 rounded-xl px-3.5 py-2.5 text-xs text-white mt-2 focus:outline-none focus:border-blue-500"
+                  />
                 )}
               </div>
 
-              {/* Stock Alerts inside Fast Sale */}
-              {isOutOfStock && (
-                <div className="p-2.5 rounded-xl bg-red-950/30 border border-red-500/30 text-xs text-red-300 flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="block text-red-200">🚨 ALERTE RUPTURE DE STOCK</strong>
-                    <span>
-                      Ce produit n&apos;a aucun lien en stock (0 article). Collez un lien manuellement ci-dessous ou livrez le client ultérieurement.
-                    </span>
+              {/* Key Vault Delivery Status (1 link = 1 stock item) */}
+              {selectedProductId !== 'custom' && (
+                <div className="p-3 rounded-xl bg-slate-950 border border-white/5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
+                      <Key className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Activation Link (1 lien = 1 article)</span>
+                      <span
+                        className={`px-1.5 py-0.2 rounded text-[10px] font-mono font-bold ${
+                          availableKeysCount > 0
+                            ? isLowStock
+                              ? 'bg-amber-500/20 text-amber-300'
+                              : 'bg-emerald-500/20 text-emerald-300'
+                            : 'bg-red-500/20 text-red-300'
+                        }`}
+                      >
+                        {availableKeysCount} in stock
+                      </span>
+                    </div>
+
+                    {hasStockKeys && (
+                      <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={deliverKeyFromVault}
+                          onChange={(e) => setDeliverKeyFromVault(e.target.checked)}
+                          className="rounded border-white/20 text-emerald-600 focus:ring-0 cursor-pointer"
+                        />
+                        <span className="text-[11px] text-slate-300">Auto-Deliver</span>
+                      </label>
+                    )}
                   </div>
-                </div>
-              )}
 
-              {isLowStock && (
-                <div className="p-2 rounded-xl bg-amber-950/30 border border-amber-500/30 text-[11px] text-amber-300 flex items-center gap-2">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span>
-                    ⚠️ <strong>Stock Faible:</strong> Seulement {availableKeysCount}{' '}
-                    {availableKeysCount <= 1 ? 'lien restant' : 'liens restants'} (1 lien = 1 article).
-                  </span>
-                </div>
-              )}
-
-              {/* Input for key / link */}
-              {hasStockKeys && deliverKeyFromVault ? (
-                <div className="space-y-2">
-                  <input
-                    type="text"
-                    value={deliveredKey}
-                    onChange={(e) => setDeliveredKey(e.target.value)}
-                    placeholder="Key or link to deliver..."
-                    className="w-full bg-slate-900 border border-emerald-500/30 rounded-lg px-2.5 py-2 text-xs font-mono text-emerald-300 focus:outline-none focus:border-emerald-500"
-                  />
-                  {deliveredKey && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(deliveredKey.trim());
-                        setIsKeyCopied(true);
-                        setTimeout(() => setIsKeyCopied(false), 2000);
-                      }}
-                      className="w-full py-2 px-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
-                    >
-                      {isKeyCopied ? (
-                        <>
-                          <Check className="w-4 h-4 text-emerald-400" />
-                          <span className="text-emerald-300 font-extrabold">Lien copié dans le presse-papier !</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-4 h-4 text-emerald-400" />
-                          <span>📋 Copier le Code / Lien d&apos;activation</span>
-                        </>
-                      )}
-                    </button>
+                  {/* Stock Alerts inside Fast Sale */}
+                  {isOutOfStock && (
+                    <div className="p-2.5 rounded-xl bg-red-950/30 border border-red-500/30 text-xs text-red-300 flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="block text-red-200">🚨 ALERTE RUPTURE DE STOCK</strong>
+                        <span>
+                          Ce produit n&apos;a aucun lien en stock (0 article). Collez un lien manuellement ci-dessous ou livrez le client ultérieurement.
+                        </span>
+                      </div>
+                    </div>
                   )}
-                  {deliveredExpiryDate && (
-                    <div className="flex items-center gap-1.5 text-[10px] pt-0.5">
-                      <Clock className="w-3 h-3 text-indigo-400" />
-                      <span className={isDeliveredExpired ? 'text-red-400 font-bold' : 'text-indigo-300'}>
-                        {isDeliveredExpired ? '⚠️ Ce lien est EXPIRÉ !' : `Validité : Expire le ${deliveredExpiryDate}`}
+
+                  {isLowStock && (
+                    <div className="p-2 rounded-xl bg-amber-950/30 border border-amber-500/30 text-[11px] text-amber-300 flex items-center gap-2">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>
+                        ⚠️ <strong>Stock Faible:</strong> Seulement {availableKeysCount}{' '}
+                        {availableKeysCount <= 1 ? 'lien restant' : 'liens restants'} (1 lien = 1 article).
                       </span>
                     </div>
                   )}
+
+                  {/* Input for key / link */}
+                  {hasStockKeys && deliverKeyFromVault ? (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={deliveredKey}
+                        onChange={(e) => setDeliveredKey(e.target.value)}
+                        placeholder="Key or link to deliver..."
+                        className="w-full bg-slate-900 border border-emerald-500/30 rounded-lg px-2.5 py-2 text-xs font-mono text-emerald-300 focus:outline-none focus:border-emerald-500"
+                      />
+                      {deliveredKey && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(deliveredKey.trim());
+                            setIsKeyCopied(true);
+                            setTimeout(() => setIsKeyCopied(false), 2000);
+                          }}
+                          className="w-full py-2 px-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+                        >
+                          {isKeyCopied ? (
+                            <>
+                              <Check className="w-4 h-4 text-emerald-400" />
+                              <span className="text-emerald-300 font-extrabold">Lien copié dans le presse-papier !</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-4 h-4 text-emerald-400" />
+                              <span>📋 Copier le Code / Lien d&apos;activation</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                      {deliveredExpiryDate && (
+                        <div className="flex items-center gap-1.5 text-[10px] pt-0.5">
+                          <Clock className="w-3 h-3 text-indigo-400" />
+                          <span className={isDeliveredExpired ? 'text-red-400 font-bold' : 'text-indigo-300'}>
+                            {isDeliveredExpired ? '⚠️ Ce lien est EXPIRÉ !' : `Validité : Expire le ${deliveredExpiryDate}`}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ) : !hasStockKeys ? (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={deliveredKey}
+                        onChange={(e) => setDeliveredKey(e.target.value)}
+                        placeholder="Coller un lien ou clé manuellement (optionnel)..."
+                        className="w-full bg-slate-900 border border-white/10 rounded-lg px-2.5 py-2 text-xs font-mono text-emerald-300 placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                      />
+                      {deliveredKey && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(deliveredKey.trim());
+                            setIsKeyCopied(true);
+                            setTimeout(() => setIsKeyCopied(false), 2000);
+                          }}
+                          className="w-full py-2 px-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+                        >
+                          {isKeyCopied ? (
+                            <>
+                              <Check className="w-4 h-4 text-emerald-400" />
+                              <span className="text-emerald-300 font-extrabold">Lien copié dans le presse-papier !</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-4 h-4 text-emerald-400" />
+                              <span>📋 Copier le Code / Lien d&apos;activation</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
-              ) : !hasStockKeys ? (
-                <div className="space-y-2">
-                  <input
-                    type="text"
-                    value={deliveredKey}
-                    onChange={(e) => setDeliveredKey(e.target.value)}
-                    placeholder="Coller un lien ou clé manuellement (optionnel)..."
-                    className="w-full bg-slate-900 border border-white/10 rounded-lg px-2.5 py-2 text-xs font-mono text-emerald-300 placeholder-slate-600 focus:outline-none focus:border-blue-500"
-                  />
-                  {deliveredKey && (
+              )}
+
+              {/* Selling Price & Sourcing Cost */}
+              <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
+                    Selling Price (DA) *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      step="any"
+                      required
+                      value={sellingPriceDzd}
+                      onChange={(e) => setSellingPriceDzd(e.target.value)}
+                      placeholder="e.g. 1800"
+                      className="w-full bg-slate-950 border border-white/10 rounded-xl pl-3.5 pr-10 py-2.5 text-base font-bold text-white focus:outline-none focus:border-emerald-500"
+                    />
+                    <span className="absolute right-3 top-3 text-xs font-bold text-slate-400">DA</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
+                    Product Cost ($)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-slate-400 text-xs font-bold">$</span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      step="any"
+                      min="0"
+                      required
+                      value={productCostUsd}
+                      onChange={(e) => setProductCostUsd(e.target.value)}
+                      className="w-full bg-slate-950 border border-white/10 rounded-xl pl-7 pr-3 py-2 text-xs sm:text-sm font-semibold text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-1 block truncate">
+                    ≈ {productCostDzd.toLocaleString()} DA
+                  </span>
+                </div>
+              </div>
+
+              {/* Unit Margin Indicator */}
+              <div className="p-3 rounded-2xl bg-gradient-to-r from-emerald-950/50 via-slate-950 to-slate-900 border border-emerald-500/30 flex items-center justify-between">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 font-semibold block">Unit Gross Profit:</span>
+                    <div className={`text-sm sm:text-base font-black truncate ${unitGrossProfitDzd >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {formatSignedProfit(unitGrossProfitDzd, 'DZD')}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-[10px] text-slate-400 block">Margin</span>
+                  <div className="text-xs sm:text-sm font-black text-emerald-400">
+                    {marginPercent}%
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Method Selector */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Payment Method *
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {paymentMethods.map((pm) => (
                     <button
                       type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(deliveredKey.trim());
-                        setIsKeyCopied(true);
-                        setTimeout(() => setIsKeyCopied(false), 2000);
-                      }}
-                      className="w-full py-2 px-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+                      key={pm.id}
+                      onClick={() => setPaymentMethod(pm.id)}
+                      className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer truncate ${
+                        paymentMethod === pm.id
+                          ? `${pm.badge} ring-2 ring-white/20 font-extrabold shadow-sm`
+                          : 'bg-slate-950 text-slate-400 border-white/5 hover:border-white/20'
+                      }`}
                     >
-                      {isKeyCopied ? (
-                        <>
-                          <Check className="w-4 h-4 text-emerald-400" />
-                          <span className="text-emerald-300 font-extrabold">Lien copié dans le presse-papier !</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-4 h-4 text-emerald-400" />
-                          <span>📋 Copier le Code / Lien d&apos;activation</span>
-                        </>
-                      )}
+                      {pm.label}
                     </button>
-                  )}
-                </div>
-              ) : null}
-            </div>
-          )}
-
-          {/* Selling Price & Sourcing Cost */}
-          <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
-                Selling Price (DA) *
-              </label>
-              <div className="relative">
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  step="any"
-                  required
-                  value={sellingPriceDzd}
-                  onChange={(e) => setSellingPriceDzd(e.target.value)}
-                  placeholder="e.g. 1800"
-                  className="w-full bg-slate-950 border border-white/10 rounded-xl pl-3.5 pr-10 py-2.5 text-base font-bold text-white focus:outline-none focus:border-emerald-500"
-                />
-                <span className="absolute right-3 top-3 text-xs font-bold text-slate-400">DA</span>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
-                Product Cost ($)
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-2.5 text-slate-400 text-xs font-bold">$</span>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  step="any"
-                  min="0"
-                  required
-                  value={productCostUsd}
-                  onChange={(e) => setProductCostUsd(e.target.value)}
-                  className="w-full bg-slate-950 border border-white/10 rounded-xl pl-7 pr-3 py-2 text-xs sm:text-sm font-semibold text-white focus:outline-none focus:border-blue-500"
-                />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-1 block truncate">
-                ≈ {productCostDzd.toLocaleString()} DA
-              </span>
-            </div>
-          </div>
-
-          {/* Unit Margin Indicator */}
-          <div className="p-3 rounded-2xl bg-gradient-to-r from-emerald-950/50 via-slate-950 to-slate-900 border border-emerald-500/30 flex items-center justify-between">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-                <Sparkles className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <span className="text-[10px] text-slate-400 font-semibold block">Unit Gross Profit:</span>
-                <div className={`text-sm sm:text-base font-black truncate ${unitGrossProfitDzd >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {formatSignedProfit(unitGrossProfitDzd, 'DZD')}
+                  ))}
                 </div>
               </div>
-            </div>
-            <div className="text-right shrink-0">
-              <span className="text-[10px] text-slate-400 block">Margin</span>
-              <div className="text-xs sm:text-sm font-black text-emerald-400">
-                {marginPercent}%
-              </div>
-            </div>
-          </div>
 
-          {/* Payment Method Selector */}
-          <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-              Payment Method *
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {paymentMethods.map((pm) => (
+              {/* Upcoming Payment / Pay Later (Crédit) Toggle */}
+              <div className="p-3 rounded-2xl bg-slate-950/80 border border-amber-500/20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-amber-300">
+                    <Clock className="w-4 h-4 text-amber-400" />
+                    <span>Upcoming Payment / Pay Later (Crédit)</span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isPayLater}
+                      onChange={(e) => setIsPayLater(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                  </label>
+                </div>
+
+                {isPayLater && (
+                  <div className="pt-1">
+                    <input
+                      type="text"
+                      placeholder="Quick note (e.g. Will pay tonight via BaridiMob)..."
+                      value={pendingNote}
+                      onChange={(e) => setPendingNote(e.target.value)}
+                      className="w-full bg-slate-900 border border-amber-500/40 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                    />
+                    <p className="text-[10px] text-amber-400/80 mt-1">
+                      Sale will be tagged as &quot;Pending Payment&quot; with a 1-tap &quot;Mark as Paid&quot; button in Orders.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Collapsible Customer Info (Non-Obligatory) */}
+              <div className="border-t border-white/5 pt-2">
                 <button
                   type="button"
-                  key={pm.id}
-                  onClick={() => setPaymentMethod(pm.id)}
-                  className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer truncate ${
-                    paymentMethod === pm.id
-                      ? `${pm.badge} ring-2 ring-white/20 font-extrabold shadow-sm`
-                      : 'bg-slate-950 text-slate-400 border-white/5 hover:border-white/20'
-                  }`}
+                  onClick={() => setShowOptional(!showOptional)}
+                  className="w-full py-2 flex items-center justify-between text-xs font-semibold text-slate-400 hover:text-slate-200 cursor-pointer"
                 >
-                  {pm.label}
+                  <span>+ Customer Contact & Notes (Optional)</span>
+                  {showOptional ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
-              ))}
+
+                {showOptional && (
+                  <div className="space-y-3 pt-2 animate-fade-in">
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <input
+                        type="text"
+                        placeholder="Customer name..."
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                      />
+                      <input
+                        type="tel"
+                        inputMode="tel"
+                        placeholder="Phone (05/06/07...)"
+                        value={customerPhone}
+                        onChange={(e) => setCustomerPhone(e.target.value)}
+                        className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Additional delivery notes..."
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                )}
+              </div>
+            </form>
+
+            {/* Sticky Action Footer */}
+            <div className="p-4 border-t border-white/10 bg-slate-900/95 backdrop-blur shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))]">
+              <button
+                type="submit"
+                form="sale-form"
+                disabled={isSubmitting}
+                className={`w-full py-3.5 rounded-xl font-bold text-sm shadow-xl active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  isPayLater
+                    ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-600/30'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
+                }`}
+              >
+                <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
+                <span>
+                  {isSubmitting
+                    ? 'Saving...'
+                    : isPayLater
+                    ? `Confirm Sale (${parsedPriceDzd.toLocaleString()} DA - Pay Later)`
+                    : `Confirm & Save Sale (+${unitGrossProfitDzd.toLocaleString()} DA)`}
+                </span>
+              </button>
             </div>
-          </div>
-
-          {/* Upcoming Payment / Pay Later (Crédit) Toggle */}
-          <div className="p-3 rounded-2xl bg-slate-950/80 border border-amber-500/20 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs font-bold text-amber-300">
-                <Clock className="w-4 h-4 text-amber-400" />
-                <span>Upcoming Payment / Pay Later (Crédit)</span>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isPayLater}
-                  onChange={(e) => setIsPayLater(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
-              </label>
-            </div>
-
-            {isPayLater && (
-              <div className="pt-1">
-                <input
-                  type="text"
-                  placeholder="Quick note (e.g. Will pay tonight via BaridiMob)..."
-                  value={pendingNote}
-                  onChange={(e) => setPendingNote(e.target.value)}
-                  className="w-full bg-slate-900 border border-amber-500/40 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
-                />
-                <p className="text-[10px] text-amber-400/80 mt-1">
-                  Sale will be tagged as &quot;Pending Payment&quot; with a 1-tap &quot;Mark as Paid&quot; button in Orders.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Collapsible Customer Info (Non-Obligatory) */}
-          <div className="border-t border-white/5 pt-2">
-            <button
-              type="button"
-              onClick={() => setShowOptional(!showOptional)}
-              className="w-full py-2 flex items-center justify-between text-xs font-semibold text-slate-400 hover:text-slate-200 cursor-pointer"
-            >
-              <span>+ Customer Contact & Notes (Optional)</span>
-              {showOptional ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </button>
-
-            {showOptional && (
-              <div className="space-y-3 pt-2 animate-fade-in">
-                <div className="grid grid-cols-2 gap-2.5">
-                  <input
-                    type="text"
-                    placeholder="Customer name..."
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                  />
-                  <input
-                    type="tel"
-                    inputMode="tel"
-                    placeholder="Phone (05/06/07...)"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-                <input
-                  type="text"
-                  placeholder="Additional delivery notes..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-            )}
-          </div>
-        </form>
-
-        {/* Sticky Action Footer */}
-        <div className="p-4 border-t border-white/10 bg-slate-900/95 backdrop-blur shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <button
-            type="submit"
-            form="sale-form"
-            disabled={isSubmitting}
-            className={`w-full py-3.5 rounded-xl font-bold text-sm shadow-xl active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              isPayLater
-                ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-600/30'
-                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
-            }`}
-          >
-            <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
-            <span>
-              {isSubmitting
-                ? 'Saving...'
-                : isPayLater
-                ? `Confirm Sale (${parsedPriceDzd.toLocaleString()} DA - Pay Later)`
-                : `Confirm & Save Sale (+${unitGrossProfitDzd.toLocaleString()} DA)`}
-            </span>
-          </button>
-        </div>
+          </>
+        )}
       </div>
     </div>
   );
