@@ -253,6 +253,31 @@ DzDigital CRM delivers a streamlined, mobile-first web app enabling **Adem** and
 
 ---
 
+### Phase 11: True Net Profit Math Audit & "Vue du Jour" (Daily Command Center)
+* **Financial Calculation Audit (Excluding Unconfirmed Credit)**:
+  - **Problem**: Total revenue and net profit aggregated all sales including unconfirmed "Pay Later / Crédit" orders, producing 32,145 DZD instead of the true collected capital of 22,345 DZD ($22,345\text{ collected} + 9,800\text{ pending} = 32,145\text{ DZD}$).
+  - **Correction in `calculations.ts`**:
+    - Aggregations (`totalRevenueDzd`, `totalProductCostDzd`, `netProfitDzd`, `ademProfitDzd`, `abdouProfitDzd`, margin %) now strictly calculate from `paidSales` (`paymentStatus !== 'pending'`).
+    - True collected Net Profit now accurately reflects **`22,345 DA`**.
+    - Pending sales are segregated as accounts receivable: **`7 paiements en attente (9,800 DA)`**.
+    - Tapping **"Encaissé (Confirmer Paiement)"** immediately moves a pending order to paid, live-updating profit by $+1,400\text{ DA}$.
+* **"Vue du Jour" (Daily Command Center) Architecture**:
+  - **Default Landing**: When opening the app, sellers now land directly on **`Aujourd'hui`**, eliminating historical clutter and focusing on daily shift operations.
+  - **Segmented View Switcher**: 3-way high-contrast toggle:
+    - **`🟢 Aujourd'hui`** (Default): Today's orders, today's pending payments, today's ad spend, and 24h caisse status.
+    - **`⏪ Hier`**: Quick retrospective of yesterday's sales and audited profit (Sept 11: 16,745 DA profit).
+    - **`📊 Vue Globale`**: Cumulative all-time macro dashboard with continuous SVG growth curve and full partner splits.
+  - **Scoped Financial Metrics**: Hero card and 4-pill breakdown dynamically recalculate based on the active tab mode.
+  - **Today's Operational Mini-HUD**: Real-time snapshot of Today's Orders (paid vs pending), Today's Meta Ad Spend & messages, and 24h Caisse status.
+  - **1-Tap Direct Payment Confirmation**:
+    - Dedicated "À ENCAISSER / CRÉDITS EN ATTENTE" section at the top of the daily sales feed with high-contrast amber styling.
+    - Full $\ge 48\text{px}$ touch target button: **`✅ Encaissé (Confirmer Paiement)`** for frictionless thumb confirmation upon receiving a BaridiMob screenshot.
+    - Direct WhatsApp shortcut to nudge clients and copy link button.
+* **Build Verification**:
+  - `npm run build` verified cleanly with Turbopack $\rightarrow$ **Exit Code 0** (0 errors, 7/7 routes generated).
+
+---
+
 ## Future Roadmap & Enhancements
 
 1. **Telegram Bot Integration**:

@@ -82,10 +82,14 @@ export function calculateSummary(
   expenses: Expense[] = [],
   dailyAdSpends: DailyAdSpend[] = []
 ): FinancialSummary {
-  const totalRevenueDzd = sales.reduce((sum, s) => sum + (s.sellingPriceDzd || 0), 0);
+  // Segregate paid sales (confirmed cash) from pending sales (crédit / pay later)
+  const paidSales = sales.filter((s) => s.paymentStatus !== 'pending');
+  const pendingSales = sales.filter((s) => s.paymentStatus === 'pending');
+
+  const totalRevenueDzd = paidSales.reduce((sum, s) => sum + (s.sellingPriceDzd || 0), 0);
   const totalRevenueUsd = convertDzdToUsd(totalRevenueDzd, rate);
 
-  const totalProductCostDzd = sales.reduce(
+  const totalProductCostDzd = paidSales.reduce(
     (sum, s) => sum + convertUsdToDzd(s.productCostUsd || 0, s.exchangeRateUsed || rate),
     0
   );
@@ -96,7 +100,7 @@ export function calculateSummary(
   if (dailyAdSpends.length > 0) {
     totalMetaAdSpendDzd = dailyAdSpends.reduce((sum, d) => sum + (d.spendDzd || 0), 0);
   } else {
-    totalMetaAdSpendDzd = sales.reduce(
+    totalMetaAdSpendDzd = paidSales.reduce(
       (sum, s) => sum + convertUsdToDzd(s.metaAdCostUsd || 0, s.exchangeRateUsed || rate),
       0
     );
@@ -112,21 +116,19 @@ export function calculateSummary(
   }, 0);
   const totalExpensesUsd = convertDzdToUsd(totalExpensesDzd, rate);
 
-  // True Net Profit
+  // True Net Profit (Collected Cash Profit strictly from Confirmed Sales)
   const netProfitDzd = totalRevenueDzd - totalProductCostDzd - totalMetaAdSpendDzd - totalExpensesDzd;
   const netProfitUsd = convertDzdToUsd(netProfitDzd, rate);
 
   const profitMarginPercent = totalRevenueDzd > 0 ? Math.round((netProfitDzd / totalRevenueDzd) * 100) : 0;
 
-  // Upcoming / Pending Payments
-  const pendingSales = sales.filter((s) => s.paymentStatus === 'pending');
-  const paidSales = sales.filter((s) => s.paymentStatus !== 'pending');
+  // Upcoming / Pending Payments (Accounts Receivable)
   const pendingPaymentsCount = pendingSales.length;
   const pendingPaymentsAmountDzd = pendingSales.reduce((sum, s) => sum + (s.sellingPriceDzd || 0), 0);
 
-  // Breakdown by partner (Adem & Abdou)
-  const ademSales = sales.filter((s) => s.soldBy === 'Adem');
-  const abdouSales = sales.filter((s) => s.soldBy === 'Abdou');
+  // Breakdown by partner (Adem & Abdou) strictly from paid sales
+  const ademSales = paidSales.filter((s) => s.soldBy === 'Adem');
+  const abdouSales = paidSales.filter((s) => s.soldBy === 'Abdou');
 
   const ademGrossSalesProfit = ademSales.reduce(
     (sum, s) => sum + (s.sellingPriceDzd - convertUsdToDzd(s.productCostUsd || 0, s.exchangeRateUsed || rate)),
@@ -142,7 +144,8 @@ export function calculateSummary(
   const ademProfitDzd = Math.round(ademGrossSalesProfit - sharedOverheadDzd / 2);
   const abdouProfitDzd = Math.round(abdouGrossSalesProfit - sharedOverheadDzd / 2);
 
-  const averageSaleProfitDzd = sales.length > 0 ? Math.round(netProfitDzd / sales.length) : 0;
+  const salesCount = paidSales.length;
+  const averageSaleProfitDzd = salesCount > 0 ? Math.round(netProfitDzd / salesCount) : 0;
 
   // Message & Ad metrics
   const totalMessagesCount = dailyAdSpends.reduce((sum, d) => sum + (d.messagesCount || 0), 0);
@@ -160,7 +163,7 @@ export function calculateSummary(
     netProfitDzd,
     netProfitUsd,
     profitMarginPercent,
-    salesCount: sales.length,
+    salesCount,
     paidSalesCount: paidSales.length,
     pendingPaymentsCount,
     pendingPaymentsAmountDzd,
