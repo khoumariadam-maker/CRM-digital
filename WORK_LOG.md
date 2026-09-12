@@ -273,6 +273,12 @@ DzDigital CRM delivers a streamlined, mobile-first web app enabling **Adem** and
     - Dedicated "À ENCAISSER / CRÉDITS EN ATTENTE" section at the top of the daily sales feed with high-contrast amber styling.
     - Full $\ge 48\text{px}$ touch target button: **`✅ Encaissé (Confirmer Paiement)`** for frictionless thumb confirmation upon receiving a BaridiMob screenshot.
     - Direct WhatsApp shortcut to nudge clients and copy link button.
+* **Product Catalog Search Filter Resilience (`p.name.toLowerCase()`)**:
+  - **Problem**: When searching or loading products, if an incomplete or corrupt product document existed in Firestore or LocalStorage without a `name` string, `p.name.toLowerCase()` threw a runtime `TypeError: Cannot read properties of undefined (reading 'toLowerCase')`.
+  - **Resolution**:
+    - Sanitized `products` loading in `CRMDataContext.tsx` at both Firestore snapshot and LocalStorage entry points, ensuring only documents with valid non-empty string names are admitted.
+    - Updated [products/page.tsx](file:///d:/projex/crm/src/app/products/page.tsx) with a typed `validProducts` memo and safe fallback strings `(p.name || '').toLowerCase()`.
+    - Added valid product filtering in [FastSaleModal.tsx](file:///d:/projex/crm/src/components/modals/FastSaleModal.tsx) and [StockImportModal.tsx](file:///d:/projex/crm/src/components/modals/StockImportModal.tsx).
 * **Build Verification**:
   - `npm run build` verified cleanly with Turbopack $\rightarrow$ **Exit Code 0** (0 errors, 7/7 routes generated).
 
