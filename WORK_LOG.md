@@ -238,10 +238,15 @@ DzDigital CRM delivers a streamlined, mobile-first web app enabling **Adem** and
         - Per-link validity badges (`Expiré` or remaining days) and warning in FastSaleModal if an expired link is selected.
    6. **Stock Importation (CSV & 1-Click "Ready to Paste")**:
       - Upload CSV files or 1-click paste from clipboard with inline selling price in DA and sourcing cost in USD to calculate unit and batch margins.
-   7. **Daily Growth Progress Graph**:
-      - Visual analytics component plotting daily revenue, net profit, and order trends.
-   8. **Clean Production Slate**:
-      - Removed mock sales and added "Start Fresh" button in Settings for zero-dummy production deployment.
+   7. **Continuous SVG Line & Area Growth Graph (Replacing Diagram)**:
+      - Transformed the chart from a column/bar diagram into a modern, continuous financial SVG Line and Area graph.
+      - Implemented smooth Catmull-Rom to Cubic Bezier curve splines, gradient area fill beneath the curve, glowing SVG stroke filter, interactive vertical crosshair scrubber on hover/touch, and floating HUD showing detailed profit, revenue, and cost breakdowns.
+      - Integrated metric toggles: `Net Profit (DZD)`, `Revenue (DZD)`, and `Commandes`.
+   8. **Live Production Up-to-Date Synchronization**:
+      - **Current BaridiMob Capital**: Seeded **22,345 DZD** net profit accumulated across 14 confirmed sales over Sept 10 and Sept 11, 2026.
+      - **Active Caisse Shift**: Opened with **22,345 DZD** BaridiMob working capital float for today.
+      - **7 Unconfirmed Pending Payments (Crédit / Pay Later)**: Seeded 7 real pending sales totaling 15,700 DZD à encaisser with 1-tap "Encaissé (Mark as Paid)" action.
+      - **Cloud Sync**: Seeded directly to Google Cloud Firebase Firestore (`crm-digital-d9106`) and resilient LocalStorage.
 * **Build Verification**:
   - Compiled production build with `npm run build` $\rightarrow$ **Exit Code 0** (0 errors, 7/7 routes generated).
 

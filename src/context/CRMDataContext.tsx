@@ -16,6 +16,7 @@ import {
 import {
   INITIAL_SALES,
   INITIAL_PRODUCTS,
+  INITIAL_CAISSES,
   INITIAL_EXCHANGE_RATE,
 } from '@/lib/mockData';
 import { calculateSummary, calculateSaleNetProfit, convertUsdToDzd } from '@/lib/calculations';
@@ -124,7 +125,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [dailyAdSpends, setDailyAdSpends] = useState<DailyAdSpend[]>([]);
-  const [dailyCaisses, setDailyCaisses] = useState<DailyCaisse[]>([]);
+  const [dailyCaisses, setDailyCaisses] = useState<DailyCaisse[]>(INITIAL_CAISSES);
   
   const [activePartner, setActivePartnerState] = useState<PartnerName>('Adem');
   const [isFirebaseConnected, setIsFirebaseConnected] = useState<boolean>(false);
@@ -182,7 +183,13 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
       const savedSales = localStorage.getItem('crm_sales_v3');
       if (savedSales) {
         const parsed = JSON.parse(savedSales);
-        if (Array.isArray(parsed)) setSales(parsed);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setSales(parsed);
+        } else {
+          setSales(INITIAL_SALES);
+        }
+      } else {
+        setSales(INITIAL_SALES);
       }
 
       const savedProducts = localStorage.getItem('crm_products_v3');
@@ -206,7 +213,13 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
       const savedCaisses = localStorage.getItem('crm_caisses_v1');
       if (savedCaisses) {
         const parsed = JSON.parse(savedCaisses);
-        if (Array.isArray(parsed)) setDailyCaisses(parsed);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setDailyCaisses(parsed);
+        } else {
+          setDailyCaisses(INITIAL_CAISSES);
+        }
+      } else {
+        setDailyCaisses(INITIAL_CAISSES);
       }
 
       const savedPartner = localStorage.getItem('crm_auth_partner') as PartnerName;
@@ -260,11 +273,18 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
           id: d.id,
         })) as Sale[];
 
-        firestoreSales.sort(
-          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-
-        setSales(firestoreSales);
+        if (firestoreSales.length > 0) {
+          firestoreSales.sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+          setSales(firestoreSales);
+        } else {
+          // If Firestore sales is empty, auto-seed with up-to-date sales
+          INITIAL_SALES.forEach((s) => {
+            setDoc(doc(db, 'sales', s.id), cleanForFirestore(s)).catch(() => {});
+          });
+          setSales(INITIAL_SALES);
+        }
       },
       (error) => {
         console.warn('Firestore sales sync error:', error.message);
@@ -285,6 +305,11 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
 
         if (firestoreProducts.length > 0) {
           setProducts(firestoreProducts);
+        } else {
+          INITIAL_PRODUCTS.forEach((p) => {
+            setDoc(doc(db, 'products', p.id), cleanForFirestore(p)).catch(() => {});
+          });
+          setProducts(INITIAL_PRODUCTS);
         }
       },
       (error) => {
@@ -319,8 +344,15 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
       collection(db, 'daily_caisses'),
       (snapshot) => {
         const list = snapshot.docs.map((d) => ({ ...d.data(), id: d.id })) as DailyCaisse[];
-        list.sort((a, b) => new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime());
-        setDailyCaisses(list);
+        if (list.length > 0) {
+          list.sort((a, b) => new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime());
+          setDailyCaisses(list);
+        } else {
+          INITIAL_CAISSES.forEach((c) => {
+            setDoc(doc(db, 'daily_caisses', c.id), cleanForFirestore(c)).catch(() => {});
+          });
+          setDailyCaisses(INITIAL_CAISSES);
+        }
       },
       (error) => console.warn('Firestore caisses sync error:', error.message)
     );
@@ -811,18 +843,25 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Clean fresh start (wipes dummy sales and starts fresh)
+  // Sync / Reset to up-to-date production baseline (22,345 DZD BaridiMob capital & 7 pending payments)
   const resetToFresh = () => {
-    setSales([]);
+    setSales(INITIAL_SALES);
+    setProducts(INITIAL_PRODUCTS);
     setExpenses([]);
     setDailyAdSpends([]);
-    setDailyCaisses([]);
-    localStorage.removeItem('crm_sales_v3');
-    localStorage.removeItem('crm_sales_v2');
+    setDailyCaisses(INITIAL_CAISSES);
+    localStorage.setItem('crm_sales_v3', JSON.stringify(INITIAL_SALES));
+    localStorage.setItem('crm_products_v3', JSON.stringify(INITIAL_PRODUCTS));
+    localStorage.setItem('crm_caisses_v1', JSON.stringify(INITIAL_CAISSES));
     localStorage.removeItem('crm_expenses_v1');
     localStorage.removeItem('crm_ad_spends_v1');
-    localStorage.removeItem('crm_caisses_v1');
-    showToast('Started completely fresh with clean production records! ✨');
+
+    const db = getFirebaseDb();
+    if (db) {
+      INITIAL_SALES.forEach((s) => setDoc(doc(db, 'sales', s.id), cleanForFirestore(s)).catch(() => {}));
+      INITIAL_CAISSES.forEach((c) => setDoc(doc(db, 'daily_caisses', c.id), cleanForFirestore(c)).catch(() => {}));
+    }
+    showToast('Données synchronisées : 22,345 DA BaridiMob & 7 paiements à crédit ! ✨');
   };
 
   const resetToDefault = () => {

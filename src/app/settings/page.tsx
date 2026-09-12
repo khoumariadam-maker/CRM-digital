@@ -351,13 +351,13 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={() => {
-              if (confirm('Start completely fresh? This will clear all test/demo sales and start with clean production records.')) {
+              if (confirm('Actualiser les données avec le capital réel BaridiMob (22,345 DA de profit) et les 7 paiements en attente (crédit) ?')) {
                 resetToFresh();
               }
             }}
-            className="py-2.5 px-4 rounded-xl bg-slate-900 border border-emerald-500/30 text-xs font-bold text-emerald-300 hover:text-white transition-colors cursor-pointer w-full sm:w-auto"
+            className="py-2.5 px-4 rounded-xl bg-slate-900 border border-emerald-500/30 text-xs font-bold text-emerald-300 hover:text-white transition-colors cursor-pointer w-full sm:w-auto flex items-center justify-center gap-1.5"
           >
-            ✨ Start Fresh (Clean Production Slate)
+            <span>🔄 Synchroniser Capital BaridiMob (22,345 DA) & 7 Crédits</span>
           </button>
 
           <button
