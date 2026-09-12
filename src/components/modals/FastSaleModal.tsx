@@ -29,8 +29,8 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
 
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [customProductName, setCustomProductName] = useState('');
-  const [sellingPriceDzd, setSellingPriceDzd] = useState<string>('1800');
-  const [productCostUsd, setProductCostUsd] = useState<string>('4.00');
+  const [sellingPriceDzd, setSellingPriceDzd] = useState<string>('1400');
+  const [productCostUsd, setProductCostUsd] = useState<string>('0');
   const [soldBy, setSoldBy] = useState<PartnerName>(activePartner);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('baridimob');
 
@@ -76,8 +76,8 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
     } else {
       setSelectedProductId('custom');
       setCustomProductName('');
-      setSellingPriceDzd('1800');
-      setProductCostUsd('4.00');
+      setSellingPriceDzd('1400');
+      setProductCostUsd('0');
       setDeliverKeyFromVault(false);
       setDeliveredKey('');
     }

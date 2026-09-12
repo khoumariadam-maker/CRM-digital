@@ -31,9 +31,9 @@ export default function StockImportModal({ isOpen, onClose }: StockImportModalPr
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [isCreatingNew, setIsCreatingNew] = useState<boolean>(false);
   const [newProductName, setNewProductName] = useState<string>('');
-  const [newProductCategory, setNewProductCategory] = useState<string>('Software');
-  const [sellingPriceDzd, setSellingPriceDzd] = useState<string>('1800');
-  const [purchaseCostUsd, setPurchaseCostUsd] = useState<string>('4.00');
+  const [newProductCategory, setNewProductCategory] = useState<string>('AI Tools');
+  const [sellingPriceDzd, setSellingPriceDzd] = useState<string>('1400');
+  const [purchaseCostUsd, setPurchaseCostUsd] = useState<string>('0');
   const [rawText, setRawText] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -58,8 +58,8 @@ export default function StockImportModal({ isOpen, onClose }: StockImportModalPr
       setIsCreatingNew(true);
       setSelectedProductId('NEW');
       setNewProductName('');
-      setSellingPriceDzd('1800');
-      setPurchaseCostUsd('4.00');
+      setSellingPriceDzd('1400');
+      setPurchaseCostUsd('0');
       return;
     }
 
