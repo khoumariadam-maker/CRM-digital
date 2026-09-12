@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useCRMData } from '@/context/CRMDataContext';
 import { useCurrency } from '@/context/CurrencyContext';
 import { convertUsdToDzd } from '@/lib/calculations';
+import { Product } from '@/types/crm';
 import {
   Package,
   Plus,
@@ -67,17 +68,22 @@ export default function ProductsPage() {
   };
 
   // Stock counts across catalog
-  const outOfStockCount = products.filter((p) => (p.stockKeys?.length || 0) === 0).length;
-  const lowStockCount = products.filter((p) => {
+  const validProducts = useMemo<Product[]>(() => {
+    return products.filter((p): p is Product => Boolean(p && typeof p.name === 'string' && p.name.trim().length > 0));
+  }, [products]);
+
+  const outOfStockCount = validProducts.filter((p) => (p.stockKeys?.length || 0) === 0).length;
+  const lowStockCount = validProducts.filter((p) => {
     const c = p.stockKeys?.length || 0;
     return c > 0 && c <= (p.lowStockThreshold ?? 2);
   }).length;
-  const inStockCount = products.filter((p) => (p.stockKeys?.length || 0) > (p.lowStockThreshold ?? 2)).length;
+  const inStockCount = validProducts.filter((p) => (p.stockKeys?.length || 0) > (p.lowStockThreshold ?? 2)).length;
 
-  const filtered = products.filter((p) => {
-    const matchesSearch =
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.category.toLowerCase().includes(searchQuery.toLowerCase());
+  const filtered = validProducts.filter((p) => {
+    const pName = (p.name || '').toLowerCase();
+    const pCat = (p.category || '').toLowerCase();
+    const query = (searchQuery || '').toLowerCase();
+    const matchesSearch = pName.includes(query) || pCat.includes(query);
     if (!matchesSearch) return false;
 
     const count = p.stockKeys?.length || 0;
@@ -87,7 +93,7 @@ export default function ProductsPage() {
     return true;
   });
 
-  const targetProd = products.find((p) => p.id === selectedProdForKeys);
+  const targetProd = validProducts.find((p) => p.id === selectedProdForKeys);
 
   return (
     <div className="space-y-4 sm:space-y-6 animate-fade-in pb-12 max-w-4xl mx-auto">
@@ -136,7 +142,7 @@ export default function ProductsPage() {
               : 'bg-slate-950 text-slate-400 border-white/10 hover:border-white/20'
           }`}
         >
-          Tous ({products.length})
+          Tous ({validProducts.length})
         </button>
 
         <button

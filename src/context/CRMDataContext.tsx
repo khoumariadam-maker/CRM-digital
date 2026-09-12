@@ -195,7 +195,12 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
       const savedProducts = localStorage.getItem('crm_products_v3');
       if (savedProducts) {
         const parsed = JSON.parse(savedProducts);
-        if (Array.isArray(parsed) && parsed.length > 0) setProducts(parsed);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const clean = parsed.filter(
+            (p) => p && typeof p.name === 'string' && p.name.trim().length > 0
+          );
+          setProducts(clean.length > 0 ? clean : INITIAL_PRODUCTS);
+        }
       }
 
       const savedExpenses = localStorage.getItem('crm_expenses_v1');
@@ -298,10 +303,14 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
     const unsubProducts = onSnapshot(
       collection(db, 'products'),
       (snapshot) => {
-        const firestoreProducts = snapshot.docs.map((d) => ({
-          ...d.data(),
-          id: d.id,
-        })) as Product[];
+        const firestoreProducts = snapshot.docs
+          .map((d) => ({
+            ...d.data(),
+            id: d.id,
+          }))
+          .filter(
+            (p: any) => p && typeof p.name === 'string' && p.name.trim().length > 0
+          ) as Product[];
 
         if (firestoreProducts.length > 0) {
           setProducts(firestoreProducts);
@@ -878,7 +887,9 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
 
   // Stock Alert: Products with low or zero stock (<= threshold or <= 2)
   const lowStockProducts = useMemo(() => {
-    return products.filter((p) => (p.stockKeys?.length || 0) <= (p.lowStockThreshold ?? 2));
+    return products
+      .filter((p) => p && typeof p.name === 'string' && p.name.trim().length > 0)
+      .filter((p) => (p.stockKeys?.length || 0) <= (p.lowStockThreshold ?? 2));
   }, [products]);
 
   return (

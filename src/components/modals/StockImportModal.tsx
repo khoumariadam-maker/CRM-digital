@@ -217,20 +217,22 @@ export default function StockImportModal({ isOpen, onClose }: StockImportModalPr
               onChange={(e) => handleProductSelect(e.target.value)}
               className="w-full bg-slate-950 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer"
             >
-              {products.map((p) => {
-                const count = p.stockKeys?.length || 0;
-                const statusTag =
-                  count === 0
-                    ? '🚨 RUPTURE (0 item)'
-                    : count <= (p.lowStockThreshold ?? 2)
-                    ? `⚠️ FAIBLE (${count} items)`
-                    : `✅ (${count} items)`;
-                return (
-                  <option key={p.id} value={p.id}>
-                    {p.name} — [{statusTag}]
-                  </option>
-                );
-              })}
+              {products
+                .filter((p) => p && typeof p.name === 'string' && p.name.trim().length > 0)
+                .map((p) => {
+                  const count = p.stockKeys?.length || 0;
+                  const statusTag =
+                    count === 0
+                      ? '🚨 RUPTURE (0 item)'
+                      : count <= (p.lowStockThreshold ?? 2)
+                      ? `⚠️ FAIBLE (${count} items)`
+                      : `✅ (${count} items)`;
+                  return (
+                    <option key={p.id} value={p.id}>
+                      {p.name} — [{statusTag}]
+                    </option>
+                  );
+                })}
               <option value="NEW">✨ + Create New Product & Deposit Links</option>
             </select>
           </div>
