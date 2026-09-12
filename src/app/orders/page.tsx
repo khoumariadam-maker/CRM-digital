@@ -20,7 +20,7 @@ export default function SalesPage() {
   const { sales, deleteSale, markSaleAsPaid, openSaleModal } = useCRMData();
   const { format, exchangeRate } = useCurrency();
 
-  const [partnerFilter, setPartnerFilter] = useState<'All' | 'Adem' | 'Abdou' | 'Pending'>('All');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'confirmed' | 'pending'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -31,13 +31,14 @@ export default function SalesPage() {
   };
 
   const pendingSalesCount = sales.filter((s) => s.paymentStatus === 'pending').length;
+  const confirmedSalesCount = sales.filter((s) => s.paymentStatus === 'paid' || !s.paymentStatus).length;
 
   const filteredSales = sales.filter((s) => {
     let matchesFilter = true;
-    if (partnerFilter === 'Pending') {
+    if (statusFilter === 'pending') {
       matchesFilter = s.paymentStatus === 'pending';
-    } else if (partnerFilter !== 'All') {
-      matchesFilter = s.soldBy === partnerFilter;
+    } else if (statusFilter === 'confirmed') {
+      matchesFilter = s.paymentStatus === 'paid' || !s.paymentStatus;
     }
 
     const matchesSearch =
@@ -56,11 +57,11 @@ export default function SalesPage() {
         <div>
           <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 mb-1">
             <ShoppingBag className="w-3.5 h-3.5" />
-            <span>SALES LOG</span>
+            <span>JOURNAL DES VENTES</span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-black text-white">Digital Sales Tracker</h1>
+          <h1 className="text-xl sm:text-2xl font-black text-white">Suivi des Ventes</h1>
           <p className="text-xs text-slate-400">
-            Real profit per sale with sourcing costs, payment channels, and pending payment tracking.
+            Historique complet des licences délivrées, encaissements et crédits clients.
           </p>
         </div>
 
@@ -70,34 +71,42 @@ export default function SalesPage() {
           className="flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white px-4 py-3 rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/30 active:scale-95 transition-all cursor-pointer"
         >
           <Plus className="w-4 h-4" />
-          <span>+ Log Sale</span>
+          <span>+ Nouvelle Vente</span>
         </button>
       </div>
 
       {/* Tabs & Search */}
       <div className="space-y-2.5">
-        <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
-          {(['All', 'Adem', 'Abdou'] as const).map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setPartnerFilter(tab)}
-              className={`py-2.5 rounded-xl text-xs font-bold transition-all border cursor-pointer truncate ${
-                partnerFilter === tab
-                  ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/30'
-                  : 'bg-slate-950 text-slate-400 border-white/10 hover:border-white/20'
-              }`}
-            >
-              {tab === 'All' ? `All (${sales.length})` : `${tab} (${sales.filter((s) => s.soldBy === tab).length})`}
-            </button>
-          ))}
-
-          {/* Pending / Pay Later Filter Tab */}
+        <div className="grid grid-cols-3 gap-2">
           <button
             type="button"
-            onClick={() => setPartnerFilter('Pending')}
+            onClick={() => setStatusFilter('all')}
+            className={`py-2.5 rounded-xl text-xs font-bold transition-all border cursor-pointer truncate ${
+              statusFilter === 'all'
+                ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/30'
+                : 'bg-slate-950 text-slate-400 border-white/10 hover:border-white/20'
+            }`}
+          >
+            Toutes ({sales.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStatusFilter('confirmed')}
+            className={`py-2.5 rounded-xl text-xs font-bold transition-all border cursor-pointer truncate ${
+              statusFilter === 'confirmed'
+                ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/30'
+                : 'bg-slate-950 text-slate-400 border-white/10 hover:border-white/20'
+            }`}
+          >
+            Encaissées ({confirmedSalesCount})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStatusFilter('pending')}
             className={`py-2.5 rounded-xl text-xs font-bold transition-all border cursor-pointer truncate flex items-center justify-center gap-1 ${
-              partnerFilter === 'Pending'
+              statusFilter === 'pending'
                 ? 'bg-amber-600 text-white border-amber-500 shadow-md shadow-amber-600/30'
                 : pendingSalesCount > 0
                 ? 'bg-amber-950/40 text-amber-300 border-amber-500/30 hover:border-amber-400'
@@ -105,7 +114,7 @@ export default function SalesPage() {
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
-            <span>À Payer ({pendingSalesCount})</span>
+            <span>À Encaisser ({pendingSalesCount})</span>
           </button>
         </div>
 
@@ -154,15 +163,6 @@ export default function SalesPage() {
                   <div className="flex items-center gap-2">
                     <span className="font-mono font-bold text-slate-300 text-xs sm:text-sm">
                       {sale.saleNumber}
-                    </span>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
-                        sale.soldBy === 'Adem'
-                          ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                          : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                      }`}
-                    >
-                      {sale.soldBy}
                     </span>
 
                     {isPending ? (

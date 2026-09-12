@@ -284,6 +284,36 @@ DzDigital CRM delivers a streamlined, mobile-first web app enabling **Adem** and
 
 ---
 
+### Phase 11: Minimalist 1-Screen Cockpit, Onboarding Wizard & Unified Business Account
+* **Core Problem Identified**:
+  - The dashboard had accumulated 10+ stacked modules, multiple banners, and micro-HUDs, feeling heavy and cluttered on mobile.
+  - Sourcing cost calculations needed exact anchoring to starting BaridiMob liquid capital (22,345 DA) with pending deferred payments excluded from liquid balance until confirmed.
+  - Partner splitting ("Adem" vs "Abdou") created unnecessary filters, toggles, and friction in a shared 2-person business.
+* **Key Architecture & UI Upgrades**:
+  1. **Minimalist 1-Screen Command Cockpit (`src/app/page.tsx`)**:
+     - Stripped out all visual clutter, secondary cards, and redundant banners.
+     - **Top Capital Card**: Displays exact BaridiMob Capital (`22,345 DA` + confirmed net profits - expenses - ads) + Today's Profit.
+     - **Debts Banner**: Direct clickable alert indicating active pending receivables ("À Encaisser / Crédits").
+     - **Primary Action Zone**: High-visibility, prominent **`+ Nouvelle Vente Flash (3s)`** button with secondary "+ Ads Meta" and "+ Dépense" actions.
+     - **Actionable Daily Feed**: Segmented view defaulting to **"À Encaisser / Crédits"** for instant 1-tap confirmation (`✅ Encaissé (Confirmer Paiement)`), WhatsApp nudge, and prominent key copying.
+     - **Collapsible Growth Chart**: Discreetly placed at the bottom for trends analysis without consuming primary viewport space.
+  2. **First-Time Configuration Wizard (`InitialSetupModal.tsx`)**:
+     - Seamless 2-step onboarding wizard for fresh starts or reconfigurations:
+       - **Step 1**: BaridiMob Initial Capital input (pre-filled with `22,345 DA`).
+       - **Step 2**: Primary Product Setup (`Jio AI Pro` @ `1,400 DA`) with optional bulk activation links paste.
+  3. **Unified Single Account Model**:
+     - Removed Adem vs Abdou partner split across PIN login, TopHeader, Sidebar, Sales filters, and modals.
+     - Single Master Business PIN (`1234`) for sub-second unlocks.
+  4. **Prominent Copy Code/Link UX**:
+     - Added prominent `📋 Copier le Code / Lien` button with visual confirmation inside `FastSaleModal.tsx` and across all sale cards.
+  5. **Streamlined Mobile Navigation & Top Header**:
+     - Clean, breathable header (`TopHeader.tsx`) showing DZ logo, Firestore sync dot, editable Square rate (`242 DA/$`), and quick session lock.
+     - Bottom navigation (`MobileNav.tsx`) consolidated to 3 tabs: `Caisse & Ventes`, `Stock / Liens`, and `Paramètres`.
+* **Build & Quality Assurance**:
+  - `npm run build` verified cleanly with Turbopack $\rightarrow$ **Exit Code 0** (0 errors, 7/7 routes generated).
+
+---
+
 ## Future Roadmap & Enhancements
 
 1. **Telegram Bot Integration**:

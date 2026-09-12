@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useCRMData } from '@/context/CRMDataContext';
 import { useCurrency } from '@/context/CurrencyContext';
-import { useAuth, PARTNER_ACCOUNTS } from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthContext';
 import { parseNumericInput } from '@/lib/calculations';
 import {
   Settings,
@@ -17,6 +17,10 @@ import {
   ShieldCheck,
   AlertTriangle,
   CloudUpload,
+  Landmark,
+  Sliders,
+  Sparkles,
+  RotateCcw,
 } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -26,7 +30,6 @@ export default function SettingsPage() {
     cloudSyncError,
     lastSyncedAt,
     firebaseConfig,
-    resetToDefault,
     resetToFresh,
     updateExchangeRate,
     syncAllDataToCloud,
@@ -36,12 +39,18 @@ export default function SettingsPage() {
     dailyAdSpends,
     dailyCaisses,
     showToast,
+    startingCapitalDzd,
+    setStartingCapitalDzd,
+    openInitialSetup,
+    resetBusinessSetup,
   } = useCRMData();
-  const { exchangeRate } = useCurrency();
-  const { partner, logout } = useAuth();
+  const { exchangeRate, format } = useCurrency();
+  const { logout } = useAuth();
 
   const [rateInput, setRateInput] = useState(exchangeRate.toString());
+  const [capitalInput, setCapitalInput] = useState(startingCapitalDzd.toString());
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [capitalSuccess, setCapitalSuccess] = useState(false);
   const [isPushingCloud, setIsPushingCloud] = useState(false);
 
   const handleSaveRate = async (e: React.FormEvent) => {
@@ -51,6 +60,18 @@ export default function SettingsPage() {
       await updateExchangeRate(val);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
+    }
+  };
+
+  const handleSaveCapital = (e: React.FormEvent) => {
+    e.preventDefault();
+    const val = parseNumericInput(capitalInput);
+    if (val >= 0) {
+      setStartingCapitalDzd(val);
+      localStorage.setItem('crm_starting_capital', String(val));
+      setCapitalSuccess(true);
+      showToast(`Capital BaridiMob mis à jour : ${val.toLocaleString()} DA`);
+      setTimeout(() => setCapitalSuccess(false), 2500);
     }
   };
 
@@ -64,6 +85,7 @@ export default function SettingsPage() {
     const backup = {
       version: 3,
       date: new Date().toISOString(),
+      startingCapitalDzd,
       exchangeRate,
       sales,
       products,
@@ -77,7 +99,7 @@ export default function SettingsPage() {
     a.href = url;
     a.download = `digital-crm-backup-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
-    showToast('Backup downloaded');
+    showToast('Backup téléchargé avec succès');
   };
 
   const handleRestoreBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -89,118 +111,148 @@ export default function SettingsPage() {
       try {
         const data = JSON.parse(event.target?.result as string);
         if (data.sales && Array.isArray(data.sales)) {
-          localStorage.setItem('crm_sales_v2', JSON.stringify(data.sales));
+          localStorage.setItem('crm_sales_v3', JSON.stringify(data.sales));
         }
         if (data.products && Array.isArray(data.products)) {
-          localStorage.setItem('crm_products_v2', JSON.stringify(data.products));
+          localStorage.setItem('crm_products_v3', JSON.stringify(data.products));
+        }
+        if (data.startingCapitalDzd !== undefined) {
+          localStorage.setItem('crm_starting_capital', String(data.startingCapitalDzd));
         }
         if (data.exchangeRate) {
           updateExchangeRate(Number(data.exchangeRate));
         }
-        showToast('Backup restored successfully! Reloading...');
+        showToast('Sauvegarde restaurée ! Rechargement...');
         setTimeout(() => window.location.reload(), 1000);
       } catch (err) {
-        alert('Invalid JSON backup file.');
+        alert('Fichier de sauvegarde invalide.');
       }
     };
     reader.readAsText(file);
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 animate-fade-in pb-12 max-w-3xl mx-auto">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in pb-16 max-w-3xl mx-auto">
       {/* Header */}
       <div className="p-4 sm:p-6 rounded-2xl glass-panel border border-white/10">
-        <div className="flex items-center gap-1.5 text-xs font-bold text-blue-400 mb-1">
+        <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 mb-1">
           <Settings className="w-3.5 h-3.5" />
-          <span>CONFIG & CLOUD</span>
+          <span>PARAMÈTRES & SYNC CLOUD</span>
         </div>
-        <h1 className="text-xl sm:text-2xl font-black text-white">Settings & Cloud Sync</h1>
+        <h1 className="text-xl sm:text-2xl font-black text-white">Configuration du Business</h1>
         <p className="text-xs text-slate-400">
-          Parallel market rate, shared Firebase cloud sync, and 4-digit PIN security.
+          Capital initial BaridiMob, cours Square, base Firebase et sécurité par code PIN.
         </p>
       </div>
 
-      {saveSuccess && (
-        <div className="p-3.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-2 animate-fade-in">
-          <CheckCircle2 className="w-4 h-4" />
-          <span>Settings saved and synced to cloud!</span>
+      {/* 1. Capital Initial BaridiMob */}
+      <div className="p-5 rounded-2xl glass-panel border border-emerald-500/20 space-y-4 bg-gradient-to-b from-emerald-950/20 to-transparent">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs font-extrabold text-emerald-300 uppercase tracking-wide">
+            <Landmark className="w-4 h-4 text-emerald-400" />
+            <span>Capital Initial BaridiMob</span>
+          </div>
+          <span className="text-xs font-mono font-black text-emerald-300 bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-500/30">
+            {startingCapitalDzd.toLocaleString()} DA
+          </span>
         </div>
-      )}
 
-      {/* 1. Security & 4-Digit PIN Access */}
+        <p className="text-xs text-slate-300 leading-relaxed">
+          Le solde affiché en haut de l&apos;écran correspond au <strong>Capital Initial + Tous les Bénéfices Nets encaissés - Dépenses - Ads</strong>. Les paiements différés (crédits) ne sont comptabilisés que lorsqu&apos;ils sont confirmés.
+        </p>
+
+        <form onSubmit={handleSaveCapital} className="flex flex-col sm:flex-row items-center gap-2.5 pt-1">
+          <div className="relative w-full sm:w-64">
+            <span className="absolute left-3.5 top-2.5 text-xs font-bold text-slate-400">Solde Base :</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              step="any"
+              required
+              value={capitalInput}
+              onChange={(e) => setCapitalInput(e.target.value)}
+              className="w-full bg-slate-950 border border-white/10 rounded-xl pl-28 pr-12 py-2.5 text-sm font-bold text-white focus:outline-none focus:border-emerald-500"
+            />
+            <span className="absolute right-3.5 top-2.5 text-xs font-bold text-slate-400">DA</span>
+          </div>
+
+          <button
+            type="submit"
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-xs font-bold transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+          >
+            <span>Mettre à jour le Capital</span>
+          </button>
+        </form>
+
+        {capitalSuccess && (
+          <div className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4" />
+            <span>Capital BaridiMob synchronisé !</span>
+          </div>
+        )}
+
+        <div className="pt-2 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <span className="text-[11px] text-slate-400">Besoin de reconfigurer le produit ou de redéfinir les bases ?</span>
+          <button
+            type="button"
+            onClick={openInitialSetup}
+            className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-emerald-500/30 text-emerald-300 text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Lancer l&apos;Assistant de Configuration</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 2. Security & Unified Master PIN */}
       <div className="p-5 rounded-2xl glass-panel border border-white/10 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs font-bold text-white">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span>Security & 4-Digit PIN Access</span>
+            <span>Accès Sécurisé par Code PIN Unique</span>
           </div>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-semibold">
-            Active: {partner || 'Guest'}
+          <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-semibold">
+            Session Active
           </span>
         </div>
 
-        <p className="text-xs text-slate-400">
-          DzDigital CRM is protected by 4-digit PIN codes. To log in on your phone, enter your code:
+        <p className="text-xs text-slate-400 leading-relaxed">
+          Le CRM fonctionne sur un compte business unifié pour toute l&apos;équipe. Vous pouvez déverrouiller la caisse avec le code PIN master principal :
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-          {/* Adem */}
-          <div className="p-3.5 rounded-xl bg-slate-950 border border-blue-500/30 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-blue-600 text-white font-black text-xs flex items-center justify-center">
-                A
-              </div>
-              <div>
-                <span className="text-xs font-bold text-white block">Adem</span>
-                <span className="text-[10px] text-slate-400">{PARTNER_ACCOUNTS.Adem.role}</span>
-              </div>
+        <div className="p-4 rounded-xl bg-slate-950 border border-white/10 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 font-black text-sm flex items-center justify-center">
+              🔑
             </div>
-            <div className="text-right">
-              <span className="text-[10px] text-slate-400 block">PIN Code</span>
-              <code className="text-xs font-bold font-mono text-blue-400 bg-blue-950/60 px-2 py-0.5 rounded border border-blue-500/30">
-                1234
-              </code>
+            <div>
+              <span className="text-xs font-bold text-white block">Code PIN Master Business</span>
+              <span className="text-[11px] text-slate-400">Accès caisse rapide & sécurisé</span>
             </div>
           </div>
-
-          {/* Abdou */}
-          <div className="p-3.5 rounded-xl bg-slate-950 border border-emerald-500/30 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center">
-                A
-              </div>
-              <div>
-                <span className="text-xs font-bold text-white block">Abdou</span>
-                <span className="text-[10px] text-slate-400">{PARTNER_ACCOUNTS.Abdou.role}</span>
-              </div>
-            </div>
-            <div className="text-right">
-              <span className="text-[10px] text-slate-400 block">PIN Code</span>
-              <code className="text-xs font-bold font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
-                5678
-              </code>
-            </div>
-          </div>
+          <code className="text-sm font-bold font-mono text-emerald-400 bg-emerald-950/60 px-3 py-1 rounded-lg border border-emerald-500/30 tracking-widest">
+            1234
+          </code>
         </div>
 
-        <div className="pt-2">
+        <div className="pt-1">
           <button
             type="button"
             onClick={logout}
             className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 border border-white/10 text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors flex items-center justify-center gap-2 cursor-pointer"
           >
             <Lock className="w-4 h-4" />
-            <span>Lock Session & Switch Partner</span>
+            <span>Verrouiller la session</span>
           </button>
         </div>
       </div>
 
-      {/* 2. Centralized Shared Firebase Cloud Sync (No credentials forms) */}
+      {/* 3. Centralized Shared Firebase Cloud Sync */}
       <div className="p-5 rounded-2xl glass-panel border border-white/10 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs font-bold text-white">
             <Flame className="w-4 h-4 text-amber-400" />
-            <span>Shared Firebase Cloud Sync</span>
+            <span>Synchronisation Cloud Firebase</span>
           </div>
           <span
             className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${
@@ -212,32 +264,32 @@ export default function SettingsPage() {
             }`}
           >
             {cloudSyncStatus === 'connected'
-              ? 'Shared Cloud Active'
+              ? 'Cloud Actif'
               : cloudSyncStatus === 'syncing'
-              ? 'Connecting / Syncing...'
-              : 'Offline Cache Mode'}
+              ? 'Connexion en cours...'
+              : 'Mode Hors-Ligne'}
           </span>
         </div>
 
         <p className="text-xs text-slate-300 leading-relaxed">
-          All data is <strong>automatically shared between Adem and Abdou</strong>. Firebase credentials are configured in code (<code className="text-amber-400 font-mono">src/lib/firebaseConfig.ts</code> and <code className="text-amber-400 font-mono">.env.local</code>) so neither of you ever needs to enter credentials on your phone.
+          Toutes les ventes, liens de stock et mouvements de caisse sont synchronisés en temps réel sur Google Cloud Firestore.
         </p>
 
         <div className="p-3.5 rounded-xl bg-slate-950 border border-white/5 space-y-2">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-slate-400 font-medium">Cloud Database:</span>
+            <span className="text-slate-400 font-medium">Base de Données :</span>
             <span className="font-mono text-emerald-400 font-bold">
-              Google Firestore (Real-Time)
+              Google Firestore (Temps Réel)
             </span>
           </div>
           <div className="flex items-center justify-between text-xs">
-            <span className="text-slate-400 font-medium">Shared Project ID:</span>
+            <span className="text-slate-400 font-medium">Projet Firebase :</span>
             <span className="font-mono text-white font-semibold">
-              {firebaseConfig.projectId || 'dzdigital-crm'}
+              {firebaseConfig.projectId || 'crm-digital-d9106'}
             </span>
           </div>
           <div className="flex items-center justify-between text-xs">
-            <span className="text-slate-400 font-medium">Connection Status:</span>
+            <span className="text-slate-400 font-medium">État du Réseau :</span>
             <span className="text-white font-semibold flex items-center gap-1.5">
               <span
                 className={`w-2 h-2 rounded-full ${
@@ -249,10 +301,10 @@ export default function SettingsPage() {
                 }`}
               />
               {cloudSyncStatus === 'connected'
-                ? `Online (Last synced: ${lastSyncedAt || 'Active'})`
+                ? `En ligne (${lastSyncedAt || 'Actif'})`
                 : cloudSyncStatus === 'syncing'
-                ? 'Connecting to Firestore...'
-                : 'Offline / Using Local Cache'}
+                ? 'Connexion à Firestore...'
+                : 'Hors-ligne / Cache Local'}
             </span>
           </div>
         </div>
@@ -261,37 +313,35 @@ export default function SettingsPage() {
           <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-1">
             <div className="flex items-center gap-1.5 font-bold">
               <AlertTriangle className="w-3.5 h-3.5" />
-              <span>Cloud Sync Notice:</span>
+              <span>Remarque Cloud :</span>
             </div>
             <p className="text-[11px] text-amber-200/90 leading-relaxed">
-              {cloudSyncError.includes('permission-denied')
-                ? 'Firestore permission denied. If using live Firebase, ensure Firestore security rules in the Firebase Console allow read/write.'
-                : cloudSyncError}
+              {cloudSyncError}
             </p>
           </div>
         )}
 
-        <div className="flex flex-col sm:flex-row gap-2 pt-1">
+        <div className="pt-1">
           <button
             type="button"
             onClick={handlePushCloud}
             disabled={isPushingCloud}
-            className="flex-1 py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-95 border border-white/10 text-xs font-bold text-white transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-95 border border-white/10 text-xs font-bold text-white transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
             <CloudUpload className="w-4 h-4 text-emerald-400" />
-            <span>{isPushingCloud ? 'Syncing...' : 'Push Local Catalog & Sales to Cloud'}</span>
+            <span>{isPushingCloud ? 'Synchronisation...' : 'Forcer la synchronisation vers le Cloud'}</span>
           </button>
         </div>
       </div>
 
-      {/* 3. Parallel Market Rate */}
+      {/* 4. Parallel Market Rate */}
       <div className="p-5 rounded-2xl glass-panel border border-white/10 space-y-3">
         <div className="flex items-center gap-2 text-xs font-bold text-white">
           <TrendingUp className="w-4 h-4 text-emerald-400" />
-          <span>Algerian Parallel Market Exchange Rate</span>
+          <span>Taux du Marché Parallèle (Square)</span>
         </div>
         <p className="text-xs text-slate-400">
-          Used to calculate exact product sourcing costs and Meta ad spend in Algerian Dinar. Synced to cloud in real time.
+          Utilisé pour calculer avec précision le coût d&apos;achat et les dépenses Meta Ads en Dinar algérien.
         </p>
 
         <form onSubmit={handleSaveRate} className="flex flex-col sm:flex-row items-center gap-3 pt-1">
@@ -313,16 +363,23 @@ export default function SettingsPage() {
             type="submit"
             className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
           >
-            Update & Share Rate
+            Enregistrer le Taux
           </button>
         </form>
+
+        {saveSuccess && (
+          <div className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4" />
+            <span>Taux de change enregistré !</span>
+          </div>
+        )}
       </div>
 
-      {/* 4. Data Backup & Restore */}
+      {/* 5. Data Management & Backups */}
       <div className="p-5 rounded-2xl glass-panel border border-white/10 space-y-3">
-        <div className="text-xs font-bold text-white">Data Management & Offline Backups</div>
+        <div className="text-xs font-bold text-white">Gestion des Données & Sauvegardes</div>
         <p className="text-xs text-slate-400">
-          Download a complete JSON snapshot of all digital sales and product keys anytime.
+          Téléchargez un snapshot JSON complet de toutes vos ventes et liens de stock pour archivage.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
@@ -332,12 +389,12 @@ export default function SettingsPage() {
             className="py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 border border-white/10 text-xs font-bold text-white transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
           >
             <Download className="w-4 h-4 text-emerald-400" />
-            <span>Download JSON Backup</span>
+            <span>Télécharger la Sauvegarde JSON</span>
           </button>
 
           <label className="py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 border border-white/10 text-xs font-bold text-white transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 text-center">
             <Upload className="w-4 h-4 text-blue-400" />
-            <span>Restore JSON Backup</span>
+            <span>Restaurer une Sauvegarde JSON</span>
             <input
               type="file"
               accept=".json"
@@ -347,29 +404,30 @@ export default function SettingsPage() {
           </label>
         </div>
 
-        <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-2">
+        <div className="pt-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => {
-              if (confirm('Actualiser les données avec le capital réel BaridiMob (22,345 DA de profit) et les 7 paiements en attente (crédit) ?')) {
+              if (confirm('Actualiser les données avec le capital réel BaridiMob (22,345 DA) et les 7 paiements en attente (crédits) ?')) {
                 resetToFresh();
               }
             }}
             className="py-2.5 px-4 rounded-xl bg-slate-900 border border-emerald-500/30 text-xs font-bold text-emerald-300 hover:text-white transition-colors cursor-pointer w-full sm:w-auto flex items-center justify-center gap-1.5"
           >
-            <span>🔄 Synchroniser Capital BaridiMob (22,345 DA) & 7 Crédits</span>
+            <span>🔄 Recharger 22,345 DA & 7 Crédits</span>
           </button>
 
           <button
             type="button"
             onClick={() => {
-              if (confirm('Are you sure you want to reset demo data?')) {
-                resetToDefault();
+              if (confirm('Êtes-vous sûr de vouloir réinitialiser et relancer la configuration initiale ?')) {
+                resetBusinessSetup();
               }
             }}
-            className="py-2.5 px-4 text-xs text-slate-500 hover:text-red-400 transition-colors cursor-pointer"
+            className="py-2.5 px-4 rounded-xl bg-red-950/30 hover:bg-red-950/60 border border-red-500/20 text-xs font-bold text-red-400 hover:text-red-300 transition-colors cursor-pointer w-full sm:w-auto flex items-center justify-center gap-1.5"
           >
-            Reset default templates
+            <RotateCcw className="w-3.5 h-3.5 text-red-400" />
+            <span>Réinitialiser & Nouveau Démarrage</span>
           </button>
         </div>
       </div>

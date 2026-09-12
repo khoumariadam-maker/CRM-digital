@@ -80,7 +80,8 @@ export function calculateSummary(
   sales: Sale[],
   rate: number,
   expenses: Expense[] = [],
-  dailyAdSpends: DailyAdSpend[] = []
+  dailyAdSpends: DailyAdSpend[] = [],
+  startingCapitalDzd: number = 0
 ): FinancialSummary {
   // Segregate paid sales (confirmed cash) from pending sales (crédit / pay later)
   const paidSales = sales.filter((s) => s.paymentStatus !== 'pending');
@@ -121,6 +122,28 @@ export function calculateSummary(
   const netProfitUsd = convertDzdToUsd(netProfitDzd, rate);
 
   const profitMarginPercent = totalRevenueDzd > 0 ? Math.round((netProfitDzd / totalRevenueDzd) * 100) : 0;
+
+  // Actual Current BaridiMob Capital
+  const baridiMobCurrentBalanceDzd = startingCapitalDzd + netProfitDzd;
+
+  // Today's isolated metrics
+  const todayDateStr = new Date().toISOString().split('T')[0];
+  const todayPaidSales = paidSales.filter((s) => s.createdAt.startsWith(todayDateStr));
+  const todayRevenueDzd = todayPaidSales.reduce((sum, s) => sum + (s.sellingPriceDzd || 0), 0);
+  const todayProductCostDzd = todayPaidSales.reduce(
+    (sum, s) => sum + convertUsdToDzd(s.productCostUsd || 0, s.exchangeRateUsed || rate),
+    0
+  );
+  const todayAdsDzd = dailyAdSpends
+    .filter((a) => a.date === todayDateStr)
+    .reduce((sum, a) => sum + (a.spendDzd || 0), 0);
+  const todayExpensesDzd = expenses
+    .filter((e) => (e.date || e.createdAt).startsWith(todayDateStr))
+    .reduce(
+      (sum, e) => sum + (e.currency === 'USD' ? convertUsdToDzd(e.amountUsd || 0, rate) : (e.amountDzd || 0)),
+      0
+    );
+  const todayProfitDzd = todayRevenueDzd - todayProductCostDzd - todayAdsDzd - todayExpensesDzd;
 
   // Upcoming / Pending Payments (Accounts Receivable)
   const pendingPaymentsCount = pendingSales.length;
@@ -174,6 +197,8 @@ export function calculateSummary(
     averageSaleProfitDzd,
     totalMessagesCount,
     averageCpmDzd,
+    baridiMobCurrentBalanceDzd,
+    todayProfitDzd,
   };
 }
 

@@ -20,6 +20,15 @@ export interface PartnerUser {
   avatarColor: string;
 }
 
+export interface BusinessConfig {
+  isConfigured: boolean;
+  startingCapitalDzd: number;
+  businessName: string;
+  defaultProductName: string;
+  defaultProductPriceDzd: number;
+  configuredAt?: string;
+}
+
 export interface Sale {
   id: string;
   saleNumber: string; // e.g. #1042
@@ -29,7 +38,7 @@ export interface Sale {
   productCostUsd: number; // Purchase / sourcing cost in USD
   metaAdCostUsd?: number; // Legacy or per-sale ad cost (optional now)
   netProfitDzd: number; // Gross profit for this sale: sellingPriceDzd - (productCostUsd * rate)
-  soldBy: PartnerName; // 'Adem' or 'Abdou'
+  soldBy?: PartnerName | string; // Optional partner attribution
   paymentMethod: PaymentMethod;
   paymentStatus?: PaymentStatus; // 'paid' | 'pending' (upcoming payment / crédit)
   pendingNote?: string; // e.g. "Will pay tonight via BaridiMob"
@@ -140,4 +149,6 @@ export interface FinancialSummary {
   averageSaleProfitDzd: number;
   totalMessagesCount: number;
   averageCpmDzd: number;
+  baridiMobCurrentBalanceDzd?: number;
+  todayProfitDzd?: number;
 }

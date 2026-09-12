@@ -102,6 +102,21 @@ interface CRMDataContextType {
   syncAllDataToCloud: () => Promise<void>;
   resetToFresh: () => void;
   resetToDefault: () => void;
+
+  // Business Setup & Capital
+  startingCapitalDzd: number;
+  setStartingCapitalDzd: (val: number) => void;
+  isConfigured: boolean;
+  isInitialSetupOpen: boolean;
+  openInitialSetup: () => void;
+  closeInitialSetup: () => void;
+  completeInitialSetup: (
+    initialBalance: number,
+    prodName: string,
+    prodPrice: number,
+    rawLinks?: string
+  ) => Promise<void>;
+  resetBusinessSetup: () => void;
 }
 
 const CRMDataContext = createContext<CRMDataContextType | undefined>(undefined);
@@ -121,12 +136,17 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
   const { exchangeRate, setExchangeRate } = useCurrency();
   const { partner: authPartner } = useAuth();
 
-  const [sales, setSales] = useState<Sale[]>(INITIAL_SALES);
+  const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [dailyAdSpends, setDailyAdSpends] = useState<DailyAdSpend[]>([]);
   const [dailyCaisses, setDailyCaisses] = useState<DailyCaisse[]>(INITIAL_CAISSES);
   
+  // Starting Capital & Onboarding
+  const [startingCapitalDzd, setStartingCapitalDzd] = useState<number>(22345);
+  const [isConfigured, setIsConfigured] = useState<boolean>(true);
+  const [isInitialSetupOpen, setIsInitialSetupOpen] = useState<boolean>(false);
+
   const [activePartner, setActivePartnerState] = useState<PartnerName>('Adem');
   const [isFirebaseConnected, setIsFirebaseConnected] = useState<boolean>(false);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('syncing');
@@ -141,6 +161,9 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
   const [isAdSpendModalOpen, setIsAdSpendModalOpen] = useState(false);
   const [isCaisseModalOpen, setIsCaisseModalOpen] = useState(false);
   const [isStockImportModalOpen, setIsStockImportModalOpen] = useState(false);
+
+  const openInitialSetup = () => setIsInitialSetupOpen(true);
+  const closeInitialSetup = () => setIsInitialSetupOpen(false);
 
   // Toast feedback
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -180,16 +203,23 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
   // 2. Load LocalStorage on mount
   useEffect(() => {
     try {
+      // Check onboarding configuration
+      const configured = localStorage.getItem('crm_business_configured');
+      const savedCap = localStorage.getItem('crm_starting_capital');
+      if (savedCap) {
+        setStartingCapitalDzd(Number(savedCap));
+      }
+      if (configured !== 'true') {
+        setIsConfigured(false);
+        setIsInitialSetupOpen(true);
+      }
+
       const savedSales = localStorage.getItem('crm_sales_v3');
       if (savedSales) {
         const parsed = JSON.parse(savedSales);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           setSales(parsed);
-        } else {
-          setSales(INITIAL_SALES);
         }
-      } else {
-        setSales(INITIAL_SALES);
       }
 
       const savedProducts = localStorage.getItem('crm_products_v3');
@@ -873,17 +903,93 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
     showToast('Données synchronisées : 22,345 DA BaridiMob & 7 paiements à crédit ! ✨');
   };
 
-  const resetToDefault = () => {
-    setSales(INITIAL_SALES);
-    setProducts(INITIAL_PRODUCTS);
+  const completeInitialSetup = async (
+    initialBalance: number,
+    prodName: string,
+    prodPrice: number,
+    rawLinks?: string
+  ) => {
+    setStartingCapitalDzd(initialBalance);
+    setIsConfigured(true);
+    setIsInitialSetupOpen(false);
+
+    try {
+      localStorage.setItem('crm_business_configured', 'true');
+      localStorage.setItem('crm_starting_capital', String(initialBalance));
+
+      const initialKeys = rawLinks
+        ? rawLinks
+            .split('\n')
+            .map((l) => l.trim())
+            .filter(Boolean)
+        : [];
+
+      const newProd: Product = {
+        id: 'prod-jio-ai-pro',
+        name: prodName,
+        category: 'AI Tools',
+        defaultCostUsd: 0,
+        defaultSellingDzd: prodPrice,
+        stockKeys: initialKeys,
+        stockItems: initialKeys.map((k, i) => ({
+          id: `stk-${Date.now()}-${i}`,
+          keyOrLink: k,
+          addedAt: new Date().toISOString(),
+        })),
+        lowStockThreshold: 2,
+        description: 'Produit principal configuré.',
+        createdAt: new Date().toISOString(),
+      };
+
+      setProducts([newProd]);
+      localStorage.setItem('crm_products_v3', JSON.stringify([newProd]));
+
+      setSales([]);
+      localStorage.setItem('crm_sales_v3', JSON.stringify([]));
+
+      const newCaisse: DailyCaisse = {
+        id: `caisse-${new Date().toISOString().split('T')[0]}`,
+        date: new Date().toISOString().split('T')[0],
+        status: 'open',
+        openedAt: new Date().toISOString(),
+        openedBy: 'Adem',
+        initialBalanceDzd: initialBalance,
+        initialBalanceUsd: 0,
+        notes: 'Fonds initial BaridiMob configuré',
+      };
+      setDailyCaisses([newCaisse]);
+      localStorage.setItem('crm_caisses_v1', JSON.stringify([newCaisse]));
+
+      const db = getFirebaseDb();
+      if (db) {
+        setDoc(doc(db, 'crm_settings', 'business_config'), cleanForFirestore({
+          isConfigured: true,
+          startingCapitalDzd: initialBalance,
+          configuredAt: new Date().toISOString(),
+        })).catch(() => {});
+        setDoc(doc(db, 'products', newProd.id), cleanForFirestore(newProd)).catch(() => {});
+        setDoc(doc(db, 'daily_caisses', newCaisse.id), cleanForFirestore(newCaisse)).catch(() => {});
+      }
+    } catch (err) {
+      console.error('Setup save error:', err);
+    }
+
+    showToast('Configuration validée ! Bienvenue sur DzDigital CRM. 🎉');
+  };
+
+  const resetBusinessSetup = () => {
+    localStorage.removeItem('crm_business_configured');
+    localStorage.removeItem('crm_starting_capital');
     localStorage.removeItem('crm_sales_v3');
-    localStorage.removeItem('crm_products_v3');
-    showToast('Reset catalog to initial templates');
+    setIsConfigured(false);
+    setIsInitialSetupOpen(true);
+    setSales([]);
+    showToast('CRM réinitialisé — Lancez la nouvelle configuration.');
   };
 
   const financials = useMemo(() => {
-    return calculateSummary(sales, exchangeRate, expenses, dailyAdSpends);
-  }, [sales, exchangeRate, expenses, dailyAdSpends]);
+    return calculateSummary(sales, exchangeRate, expenses, dailyAdSpends, startingCapitalDzd);
+  }, [sales, exchangeRate, expenses, dailyAdSpends, startingCapitalDzd]);
 
   // Stock Alert: Products with low or zero stock (<= threshold or <= 2)
   const lowStockProducts = useMemo(() => {
@@ -946,7 +1052,15 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
         updateExchangeRate,
         syncAllDataToCloud,
         resetToFresh,
-        resetToDefault,
+        resetToDefault: resetBusinessSetup,
+        startingCapitalDzd,
+        setStartingCapitalDzd,
+        isConfigured,
+        isInitialSetupOpen,
+        openInitialSetup,
+        closeInitialSetup,
+        completeInitialSetup,
+        resetBusinessSetup,
       }}
     >
       {children}

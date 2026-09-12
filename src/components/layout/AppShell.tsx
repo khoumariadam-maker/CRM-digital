@@ -13,6 +13,7 @@ import ExpenseModal from '@/components/modals/ExpenseModal';
 import DailyAdSpendModal from '@/components/modals/DailyAdSpendModal';
 import CaisseModal from '@/components/modals/CaisseModal';
 import StockImportModal from '@/components/modals/StockImportModal';
+import InitialSetupModal from '@/components/onboarding/InitialSetupModal';
 import PinLoginScreen from '@/components/auth/PinLoginScreen';
 import { CheckCircle2 } from 'lucide-react';
 
@@ -31,6 +32,8 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     closeCaisseModal,
     isStockImportModalOpen,
     closeStockImportModal,
+    isInitialSetupOpen,
+    completeInitialSetup,
     toastMessage,
   } = useCRMData();
 
@@ -92,6 +95,10 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       <StockImportModal
         isOpen={isStockImportModalOpen}
         onClose={closeStockImportModal}
+      />
+      <InitialSetupModal
+        isOpen={isInitialSetupOpen}
+        onComplete={completeInitialSetup}
       />
 
       {/* Global Toast Notification */}

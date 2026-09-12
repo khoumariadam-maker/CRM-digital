@@ -177,18 +177,12 @@ export default function PinLoginScreen() {
               </button>
             </div>
 
-            {/* Discreet Partner Credentials Indicator (No bypass buttons) */}
+            {/* Master Security PIN indicator */}
             <div className="w-full pt-3 border-t border-white/10 text-center">
-              <div className="inline-flex items-center gap-3 text-[11px] text-slate-400 bg-slate-950/80 px-3.5 py-1.5 rounded-full border border-white/5">
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-blue-500" />
-                  <strong className="text-slate-300">Adem:</strong> 1234
-                </span>
-                <span className="text-slate-600">•</span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <strong className="text-slate-300">Abdou:</strong> 5678
-                </span>
+              <div className="inline-flex items-center gap-2 text-[11px] text-slate-400 bg-slate-950/80 px-3.5 py-1.5 rounded-full border border-white/5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Code PIN Business:</span>
+                <strong className="text-emerald-400 font-mono">1234</strong>
               </div>
             </div>
           </>

@@ -16,6 +16,8 @@ import {
   Clock,
   CheckCircle2,
   AlertTriangle,
+  Copy,
+  Check,
 } from 'lucide-react';
 
 interface FastSaleModalProps {
@@ -41,6 +43,7 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
   // Key vault delivery
   const [deliverKeyFromVault, setDeliverKeyFromVault] = useState<boolean>(true);
   const [deliveredKey, setDeliveredKey] = useState('');
+  const [isKeyCopied, setIsKeyCopied] = useState(false);
 
   // Optional fields
   const [showOptional, setShowOptional] = useState(false);
@@ -357,14 +360,37 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
 
               {/* Input for key / link */}
               {hasStockKeys && deliverKeyFromVault ? (
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <input
                     type="text"
                     value={deliveredKey}
                     onChange={(e) => setDeliveredKey(e.target.value)}
                     placeholder="Key or link to deliver..."
-                    className="w-full bg-slate-900 border border-emerald-500/30 rounded-lg px-2.5 py-1.5 text-xs font-mono text-emerald-300 focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-slate-900 border border-emerald-500/30 rounded-lg px-2.5 py-2 text-xs font-mono text-emerald-300 focus:outline-none focus:border-emerald-500"
                   />
+                  {deliveredKey && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(deliveredKey.trim());
+                        setIsKeyCopied(true);
+                        setTimeout(() => setIsKeyCopied(false), 2000);
+                      }}
+                      className="w-full py-2 px-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+                    >
+                      {isKeyCopied ? (
+                        <>
+                          <Check className="w-4 h-4 text-emerald-400" />
+                          <span className="text-emerald-300 font-extrabold">Lien copié dans le presse-papier !</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4 text-emerald-400" />
+                          <span>📋 Copier le Code / Lien d&apos;activation</span>
+                        </>
+                      )}
+                    </button>
+                  )}
                   {deliveredExpiryDate && (
                     <div className="flex items-center gap-1.5 text-[10px] pt-0.5">
                       <Clock className="w-3 h-3 text-indigo-400" />
@@ -375,13 +401,38 @@ export default function FastSaleModal({ isOpen, onClose }: FastSaleModalProps) {
                   )}
                 </div>
               ) : !hasStockKeys ? (
-                <input
-                  type="text"
-                  value={deliveredKey}
-                  onChange={(e) => setDeliveredKey(e.target.value)}
-                  placeholder="Coller un lien ou clé manuellement (optionnel)..."
-                  className="w-full bg-slate-900 border border-white/10 rounded-lg px-2.5 py-2 text-xs font-mono text-emerald-300 placeholder-slate-600 focus:outline-none focus:border-blue-500"
-                />
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={deliveredKey}
+                    onChange={(e) => setDeliveredKey(e.target.value)}
+                    placeholder="Coller un lien ou clé manuellement (optionnel)..."
+                    className="w-full bg-slate-900 border border-white/10 rounded-lg px-2.5 py-2 text-xs font-mono text-emerald-300 placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                  />
+                  {deliveredKey && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(deliveredKey.trim());
+                        setIsKeyCopied(true);
+                        setTimeout(() => setIsKeyCopied(false), 2000);
+                      }}
+                      className="w-full py-2 px-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+                    >
+                      {isKeyCopied ? (
+                        <>
+                          <Check className="w-4 h-4 text-emerald-400" />
+                          <span className="text-emerald-300 font-extrabold">Lien copié dans le presse-papier !</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4 text-emerald-400" />
+                          <span>📋 Copier le Code / Lien d&apos;activation</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
               ) : null}
             </div>
           )}
