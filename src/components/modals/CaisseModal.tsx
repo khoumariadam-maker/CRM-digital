@@ -15,9 +15,9 @@ export default function CaisseModal({ isOpen, onClose }: CaisseModalProps) {
   const { activeCaisse, openCaisse, closeCaisse, sales, expenses, activePartner } = useCRMData();
   const { exchangeRate } = useCurrency();
 
-  // Opening fields
-  const [initDzd, setInitDzd] = useState('50000');
-  const [initUsd, setInitUsd] = useState('100');
+  // Opening fields - start empty for real data entry
+  const [initDzd, setInitDzd] = useState('');
+  const [initUsd, setInitUsd] = useState('');
 
   // Closing fields
   const [closingDzd, setClosingDzd] = useState('');

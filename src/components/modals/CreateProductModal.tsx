@@ -26,8 +26,8 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
 
   const [name, setName] = useState('');
   const [category, setCategory] = useState(CATEGORIES[0]);
-  const [defaultCostUsd, setDefaultCostUsd] = useState('4.00');
-  const [defaultSellingDzd, setDefaultSellingDzd] = useState('1800');
+  const [defaultCostUsd, setDefaultCostUsd] = useState('');
+  const [defaultSellingDzd, setDefaultSellingDzd] = useState('');
   const [rawKeys, setRawKeys] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -36,8 +36,8 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
     if (isOpen) {
       setName('');
       setCategory(CATEGORIES[0]);
-      setDefaultCostUsd('4.00');
-      setDefaultSellingDzd('1800');
+      setDefaultCostUsd('');
+      setDefaultSellingDzd('');
       setRawKeys('');
       setDescription('');
     }
@@ -162,6 +162,7 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
                   step="any"
                   min="0"
                   required
+                  placeholder="0.00"
                   value={defaultCostUsd}
                   onChange={(e) => setDefaultCostUsd(e.target.value)}
                   className="w-full bg-slate-950 border border-white/10 rounded-xl pl-7 pr-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
@@ -182,6 +183,7 @@ export default function CreateProductModal({ isOpen, onClose }: CreateProductMod
                   inputMode="numeric"
                   step="any"
                   required
+                  placeholder="1500"
                   value={defaultSellingDzd}
                   onChange={(e) => setDefaultSellingDzd(e.target.value)}
                   className="w-full bg-slate-950 border border-white/10 rounded-xl pl-3.5 pr-10 py-2.5 text-sm font-bold text-white focus:outline-none focus:border-emerald-500"
