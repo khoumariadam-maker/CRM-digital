@@ -331,6 +331,26 @@ DzDigital CRM delivers a streamlined, mobile-first web app enabling **Adem** and
 * **Build Verification**:
   - `npm run build` verified with Turbopack $\rightarrow$ **Exit Code 0** (0 errors, 7/7 routes generated).
 
+### Phase 13: CSV Header Detection, Per-Link Stock Management, Firestore Capital Sync & Settings Sanitization
+* **Feature 1: Intelligent CSV Import Header Detection (`calculations.ts`)**:
+  - Replaced narrow exact-match header check with expanded sets for column index (`HEADER_COL0`: index, no, n°, id, num, titre, nom, etc.) and link (`HEADER_COL1`: lien, url, link, token, invite, code, etc.).
+  - Added `looksLikeRealData()` safety guard: if column 1 looks like an actual URL (`://`, `.com`, `.net`, etc.) or token (>= 15 chars), it is never discarded as a header, preventing accidental loss of real stock items.
+* **Feature 2: Per-Link Stock Item Deletion & Collapsible Navigation (`products/page.tsx` + `CRMDataContext.tsx`)**:
+  - Implemented `removeStockKey(productId, keyOrLink): Promise<void>` in `CRMDataContext` with instant Firestore document synchronization.
+  - Added individual trash icon action on each stock link in the product catalog with hover cues and touch targets.
+  - Added collapsible view toggle (`▼ Voir tous les N liens` / `▲ Réduire`) for products with more than 4 links to keep mobile views clean.
+* **Feature 3: Cloud-Synced Working Capital / Solde Actuel (`CRMDataContext.tsx` + `settings/page.tsx`)**:
+  - Added persistent Firestore synchronization for working balance (`crm_settings/starting_capital`) via `updateStartingCapital()`.
+  - Added real-time `onSnapshot` listener so changes to starting balance/capital on one partner device instantly update all connected devices.
+  - Updated Settings page capital editor to persist changes asynchronously to Firestore.
+* **Feature 4: Settings Page Clean-up & Safety Hardening (`settings/page.tsx`)**:
+  - Removed dangerous "Recharger 22,345 DA & 7 Crédits" dummy data button that could overwrite live operational numbers.
+  - Reinforced full database reset confirmation modal with clear, high-contrast warning alerts.
+  - Cleaned up unused imports and state variables.
+* **Build Verification**:
+  - `npm run build` verified with Turbopack $\rightarrow$ **Exit Code 0** (0 errors, 7/7 routes generated).
+  - Committed as `aa9e6d3` and pushed to `origin/main`.
+
 ---
 
 ## Future Roadmap & Enhancements
