@@ -223,6 +223,22 @@ export function parseImportedStock(rawText: string, defaultProductName?: string)
 
   const results: ParsedStockItem[] = [];
 
+  // Words that signal a header cell in column 0 (product/name identifier column)
+  const HEADER_COL0 = new Set([
+    'product', 'produit', 'name', 'nom', 'titre', 'title', 'article', 'item',
+    'index', 'n°', 'no', 'no.', '#', 'num', 'numero', 'numéro', 'id',
+    'description', 'cat', 'category', 'categorie', 'type', 'ref', 'référence', 'reference',
+  ]);
+  // Words that signal a header cell in column 1 (link/key column)
+  const HEADER_COL1 = new Set([
+    'key', 'link', 'lien', 'url', 'activation', 'clé', 'cle', 'code',
+    'token', 'keys', 'liens', 'links', 'credential', 'login', 'access',
+    'lien_activation', 'activation_link', 'invite_link', 'invitation',
+  ]);
+  // A value looks like real data if it's a URL or a reasonably long key (>=15 chars)
+  const looksLikeRealData = (val: string) =>
+    val.includes('://') || val.includes('.com') || val.includes('.net') || val.length >= 15;
+
   for (const line of lines) {
     // Check if line contains a separator (comma, semicolon, or tab)
     let parts: string[] = [];
@@ -237,11 +253,10 @@ export function parseImportedStock(rawText: string, defaultProductName?: string)
     }
 
     if (parts.length >= 2 && parts[0].length > 0 && parts[1].length > 0) {
-      // Ignore header row if present (e.g. "Product, Link" or "Name, Key")
       const lower0 = parts[0].toLowerCase();
       const lower1 = parts[1].toLowerCase();
-      if ((lower0 === 'product' || lower0 === 'produit' || lower0 === 'name') &&
-          (lower1 === 'key' || lower1 === 'link' || lower1 === 'activation' || lower1 === 'cle')) {
+      // Skip header rows: col1 doesn't look like real data AND either column is a known header word
+      if (!looksLikeRealData(parts[1]) && (HEADER_COL0.has(lower0) || HEADER_COL1.has(lower1))) {
         continue;
       }
       results.push({

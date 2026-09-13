@@ -95,6 +95,7 @@ interface CRMDataContextType {
     isExpiringSoon: boolean;
   }[];
   removeExpiredStockKeys: (productId: string) => Promise<void>;
+  removeStockKey: (productId: string, keyOrLink: string) => Promise<void>;
 
   // Expenses operations
   addExpense: (expenseData: Omit<Expense, 'id' | 'createdAt'>) => Promise<Expense>;
@@ -117,6 +118,7 @@ interface CRMDataContextType {
   // Business Setup & Capital
   startingCapitalDzd: number;
   setStartingCapitalDzd: (val: number) => void;
+  updateStartingCapital: (val: number) => Promise<void>;
   isConfigured: boolean;
   isInitialSetupOpen: boolean;
   openInitialSetup: () => void;
@@ -421,6 +423,21 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
       (error) => console.warn('Firestore exchange rate error:', error.message)
     );
 
+    // Sync starting capital from Firestore
+    const unsubCapital = onSnapshot(
+      doc(db, 'crm_settings', 'starting_capital'),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data && typeof data.value === 'number' && data.value >= 0) {
+            setStartingCapitalDzd(data.value);
+            localStorage.setItem('crm_starting_capital', String(data.value));
+          }
+        }
+      },
+      (error) => console.warn('Firestore capital sync error:', error.message)
+    );
+
     return () => {
       unsubSales();
       unsubProducts();
@@ -428,6 +445,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
       unsubAdSpends();
       unsubCaisses();
       unsubRate();
+      unsubCapital();
     };
   }, [setExchangeRate]);
 
@@ -1028,6 +1046,55 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
       .filter((item) => item.isExpired || item.isExpiringSoon);
   }, [products]);
 
+  // Update starting capital and persist to both localStorage and Firestore
+  const updateStartingCapital = async (val: number): Promise<void> => {
+    if (isNaN(val) || val < 0) return;
+    setStartingCapitalDzd(val);
+    localStorage.setItem('crm_starting_capital', String(val));
+    showToast(`Capital BaridiMob mis à jour : ${val.toLocaleString()} DA`);
+    const db = getFirebaseDb();
+    if (db) {
+      try {
+        await setDoc(doc(db, 'crm_settings', 'starting_capital'), {
+          value: val,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.warn('Firestore capital save error:', err);
+      }
+    }
+  };
+
+  // Remove a single stock key/link from a product
+  const removeStockKey = async (productId: string, keyOrLink: string): Promise<void> => {
+    let updatedKeys: string[] = [];
+    let updatedItems: StockItem[] = [];
+
+    setProducts((prev) =>
+      prev.map((p) => {
+        if (p.id !== productId) return p;
+        updatedItems = (p.stockItems || []).filter((item) => item.keyOrLink !== keyOrLink);
+        updatedKeys = updatedItems.map((item) => item.keyOrLink);
+        // If stockItems is empty (legacy product), fall back to filtering stockKeys
+        if ((p.stockItems || []).length === 0) {
+          updatedKeys = (p.stockKeys || []).filter((k) => k !== keyOrLink);
+        }
+        return { ...p, stockKeys: updatedKeys, stockItems: updatedItems };
+      })
+    );
+
+    showToast('Lien supprimé du stock.');
+
+    const db = getFirebaseDb();
+    if (db) {
+      setDoc(
+        doc(db, 'products', productId),
+        cleanForFirestore({ stockKeys: updatedKeys, stockItems: updatedItems }),
+        { merge: true }
+      ).catch(() => {});
+    }
+  };
+
   const removeExpiredStockKeys = async (productId: string): Promise<void> => {
     const now = new Date();
     let updatedKeys: string[] = [];
@@ -1063,6 +1130,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
         lowStockProducts,
         expiringStockItems,
         removeExpiredStockKeys,
+        removeStockKey,
         expenses,
         dailyAdSpends,
         dailyCaisses,
@@ -1114,6 +1182,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
         resetToDefault: resetBusinessSetup,
         startingCapitalDzd,
         setStartingCapitalDzd,
+        updateStartingCapital,
         isConfigured,
         isInitialSetupOpen,
         openInitialSetup,

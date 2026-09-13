@@ -40,7 +40,7 @@ function getExpiryStatus(expiresAt?: string): {
 }
 
 export default function ProductsPage() {
-  const { products, deleteProduct, addStockKeys, openProductModal, openStockImportModal, removeExpiredStockKeys } = useCRMData();
+  const { products, deleteProduct, addStockKeys, openProductModal, openStockImportModal, removeExpiredStockKeys, removeStockKey } = useCRMData();
   const { format, exchangeRate } = useCurrency();
 
   const [selectedProdForKeys, setSelectedProdForKeys] = useState<string | null>(null);
@@ -48,6 +48,7 @@ export default function ProductsPage() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [stockFilter, setStockFilter] = useState<'all' | 'out' | 'low' | 'in'>('all');
+  const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
   const [hasExpiry, setHasExpiry] = useState(false);
   const [expiryPreset, setExpiryPreset] = useState<'24h' | '48h' | '7d' | '30d' | 'custom'>('24h');
   const [customDays, setCustomDays] = useState('14');
@@ -343,8 +344,8 @@ export default function ProductsPage() {
                 </div>
 
                 {keysCount > 0 ? (
-                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                    {prod.stockKeys.slice(0, 4).map((k, idx) => {
+                  <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                    {(expandedProducts.has(prod.id) ? prod.stockKeys : prod.stockKeys.slice(0, 4)).map((k, idx) => {
                       // Find matched stockItem with expiry
                       const stockItem = prod.stockItems?.find((item) => item.keyOrLink === k);
                       const expiry = getExpiryStatus(stockItem?.expiresAt);
@@ -365,7 +366,7 @@ export default function ProductsPage() {
                             <span className="truncate">{k}</span>
                           </div>
 
-                          <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="flex items-center gap-1 shrink-0">
                             {expiry.label && (
                               <span
                                 className={`px-1.5 py-0.5 rounded text-[9px] font-sans font-bold flex items-center gap-1 border ${expiry.color}`}
@@ -392,14 +393,38 @@ export default function ProductsPage() {
                                 <Copy className="w-3 h-3" />
                               )}
                             </button>
+
+                            <button
+                              type="button"
+                              onClick={() => removeStockKey(prod.id, k)}
+                              className="p-1 rounded text-slate-500 hover:text-red-400 hover:bg-red-950/30 transition-colors cursor-pointer"
+                              title="Supprimer ce lien du stock"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
                           </div>
                         </div>
                       );
                     })}
+
+                    {/* Show more / show less toggle */}
                     {keysCount > 4 && (
-                      <span className="text-[10px] text-slate-500 block text-center pt-0.5 font-medium">
-                        +{keysCount - 4} autres articles/liens dans le stock
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedProducts((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(prod.id)) next.delete(prod.id);
+                            else next.add(prod.id);
+                            return next;
+                          })
+                        }
+                        className="w-full mt-1 py-1.5 rounded-xl border border-white/10 text-[10px] font-bold text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer flex items-center justify-center gap-1"
+                      >
+                        {expandedProducts.has(prod.id)
+                          ? `▲ Réduire la liste`
+                          : `▼ Voir tous les ${keysCount} liens`}
+                      </button>
                     )}
 
                     {/* Remove expired button */}

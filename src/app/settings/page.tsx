@@ -11,26 +11,22 @@ import {
   TrendingUp,
   Download,
   Upload,
-  RefreshCw,
   CheckCircle2,
   Lock,
   ShieldCheck,
   AlertTriangle,
   CloudUpload,
   Landmark,
-  Sliders,
   Sparkles,
   RotateCcw,
 } from 'lucide-react';
 
 export default function SettingsPage() {
   const {
-    isFirebaseConnected,
     cloudSyncStatus,
     cloudSyncError,
     lastSyncedAt,
     firebaseConfig,
-    resetToFresh,
     updateExchangeRate,
     syncAllDataToCloud,
     sales,
@@ -40,7 +36,7 @@ export default function SettingsPage() {
     dailyCaisses,
     showToast,
     startingCapitalDzd,
-    setStartingCapitalDzd,
+    updateStartingCapital,
     openInitialSetup,
     resetBusinessSetup,
   } = useCRMData();
@@ -63,14 +59,12 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSaveCapital = (e: React.FormEvent) => {
+  const handleSaveCapital = async (e: React.FormEvent) => {
     e.preventDefault();
     const val = parseNumericInput(capitalInput);
     if (val >= 0) {
-      setStartingCapitalDzd(val);
-      localStorage.setItem('crm_starting_capital', String(val));
+      await updateStartingCapital(val);
       setCapitalSuccess(true);
-      showToast(`Capital BaridiMob mis à jour : ${val.toLocaleString()} DA`);
       setTimeout(() => setCapitalSuccess(false), 2500);
     }
   };
@@ -404,27 +398,15 @@ export default function SettingsPage() {
           </label>
         </div>
 
-        <div className="pt-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="pt-4 border-t border-white/5">
           <button
             type="button"
             onClick={() => {
-              if (confirm('Actualiser les données avec le capital réel BaridiMob (22,345 DA) et les 7 paiements en attente (crédits) ?')) {
-                resetToFresh();
-              }
-            }}
-            className="py-2.5 px-4 rounded-xl bg-slate-900 border border-emerald-500/30 text-xs font-bold text-emerald-300 hover:text-white transition-colors cursor-pointer w-full sm:w-auto flex items-center justify-center gap-1.5"
-          >
-            <span>🔄 Recharger 22,345 DA & 7 Crédits</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              if (confirm('Êtes-vous sûr de vouloir réinitialiser et relancer la configuration initiale ?')) {
+              if (confirm('⚠️ ATTENTION : Cette action va effacer TOUTES les ventes, dépenses et caisses actuelles et relancer la configuration initiale. Cette action est irréversible. Continuer ?')) {
                 resetBusinessSetup();
               }
             }}
-            className="py-2.5 px-4 rounded-xl bg-red-950/30 hover:bg-red-950/60 border border-red-500/20 text-xs font-bold text-red-400 hover:text-red-300 transition-colors cursor-pointer w-full sm:w-auto flex items-center justify-center gap-1.5"
+            className="py-2.5 px-4 rounded-xl bg-red-950/30 hover:bg-red-950/60 border border-red-500/20 text-xs font-bold text-red-400 hover:text-red-300 transition-colors cursor-pointer w-full flex items-center justify-center gap-1.5"
           >
             <RotateCcw className="w-3.5 h-3.5 text-red-400" />
             <span>Réinitialiser & Nouveau Démarrage</span>
