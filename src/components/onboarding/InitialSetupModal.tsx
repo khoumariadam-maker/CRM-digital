@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useCRMData } from '@/context/CRMDataContext';
-import { Landmark, Package, Sparkles, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Landmark, Package, CheckCircle2, ArrowRight, Sparkles } from 'lucide-react';
 
 interface InitialSetupModalProps {
   isOpen: boolean;
@@ -11,22 +11,30 @@ interface InitialSetupModalProps {
 
 export default function InitialSetupModal({ isOpen, onComplete }: InitialSetupModalProps) {
   const [step, setStep] = useState<1 | 2>(1);
-  const [startingBalanceDzd, setStartingBalanceDzd] = useState<number>(22345);
-  const [productName, setProductName] = useState<string>('Jio AI Pro');
-  const [productPriceDzd, setProductPriceDzd] = useState<number>(1400);
+
+  // Step 1 — always start empty, user types their real balance
+  const [startingBalanceDzd, setStartingBalanceDzd] = useState<string>('');
+
+  // Step 2 — empty product fields
+  const [productName, setProductName] = useState<string>('');
+  const [productPriceDzd, setProductPriceDzd] = useState<string>('');
+  const [productCostUsd, setProductCostUsd] = useState<string>('');
   const [initialLinksText, setInitialLinksText] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   if (!isOpen) return null;
+
+  const balanceValue = parseFloat(startingBalanceDzd.replace(',', '.')) || 0;
+  const priceValue = parseFloat(productPriceDzd.replace(',', '.')) || 0;
 
   const handleFinish = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
       await onComplete(
-        startingBalanceDzd || 0,
-        productName.trim() || 'Jio AI Pro',
-        productPriceDzd || 1400,
+        balanceValue,
+        productName.trim(),
+        priceValue,
         initialLinksText.trim() || undefined
       );
     } finally {
@@ -34,142 +42,200 @@ export default function InitialSetupModal({ isOpen, onComplete }: InitialSetupMo
     }
   };
 
+  const canGoToStep2 = step === 1 && startingBalanceDzd.trim() !== '';
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in overflow-y-auto">
-      <div className="relative w-full max-w-md my-auto bg-slate-950 border border-emerald-500/30 rounded-3xl p-6 sm:p-7 shadow-2xl shadow-emerald-950/40 space-y-6">
-        {/* Glow ambient */}
-        <div className="absolute -top-12 -right-12 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md p-0 sm:p-4 animate-fade-in">
+      <div className="relative w-full sm:max-w-md bg-[#0f1117] sm:rounded-3xl rounded-t-3xl border border-white/10 shadow-2xl overflow-hidden">
 
-        {/* Step Indicator */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
-              Configuration Initiale (1ère Utilisation)
-            </span>
+        {/* Gradient top accent */}
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-500/60 to-transparent" />
+
+        <div className="p-6 sm:p-7 space-y-5">
+
+          {/* Step indicator */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
+                {step === 1 ? 'Capital Initial' : 'Produit Principal'}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {[1, 2].map((s) => (
+                <div
+                  key={s}
+                  className={`h-1 rounded-full transition-all duration-300 ${
+                    s === step ? 'w-6 bg-emerald-400' : s < step ? 'w-4 bg-emerald-600' : 'w-4 bg-slate-700'
+                  }`}
+                />
+              ))}
+            </div>
           </div>
-          <span className="text-[11px] font-mono text-slate-400 font-bold">
-            Étape {step} / 2
-          </span>
-        </div>
 
-        {step === 1 ? (
-          /* Step 1: Capital BaridiMob */
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mb-2">
-                <Landmark className="w-6 h-6" />
-              </div>
-              <h2 className="text-xl font-black text-white">Solde Initial BaridiMob</h2>
-              <p className="text-xs text-slate-400">
-                Indiquez le capital réel présent sur votre compte BaridiMob aujourd&apos;hui. Vos bénéfices nets s&apos;y ajouteront automatiquement.
-              </p>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300">
-                Capital BaridiMob Actuel (DA)
-              </label>
-              <div className="relative">
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min="0"
-                  required
-                  value={startingBalanceDzd || ''}
-                  onChange={(e) => setStartingBalanceDzd(Number(e.target.value))}
-                  placeholder="22345"
-                  className="w-full bg-slate-900 border border-emerald-500/40 focus:border-emerald-400 rounded-2xl px-4 py-3 text-lg font-black text-white placeholder-slate-600 focus:outline-none tracking-tight"
-                />
-                <span className="absolute right-4 top-3.5 text-xs font-bold text-slate-400">
-                  DZD
-                </span>
-              </div>
-              <p className="text-[11px] text-emerald-400/90 font-medium">
-                💡 Recommandé : 22,345 DA (Capital actuel confirmé)
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setStep(2)}
-              className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 active:scale-95 transition-all cursor-pointer min-h-[48px]"
-            >
-              <span>Continuer vers le Produit</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-        ) : (
-          /* Step 2: Product & Stock Confirmation */
-          <form onSubmit={handleFinish} className="space-y-4">
-            <div className="space-y-1">
-              <div className="w-12 h-12 rounded-2xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 mb-2">
-                <Package className="w-6 h-6" />
-              </div>
-              <h2 className="text-xl font-black text-white">Produit & Stock</h2>
-              <p className="text-xs text-slate-400">
-                Confirmez votre produit principal et déposez vos premiers liens d&apos;activation (optionnel).
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2.5">
+          {step === 1 ? (
+            /* ── STEP 1: BaridiMob Capital ── */
+            <div className="space-y-5">
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300">Nom Produit</label>
-                <input
-                  type="text"
-                  required
-                  value={productName}
-                  onChange={(e) => setProductName(e.target.value)}
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-blue-500"
-                />
+                <div className="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center mb-3">
+                  <Landmark className="w-5 h-5 text-emerald-400" />
+                </div>
+                <h2 className="text-xl font-black text-white">Solde BaridiMob Actuel</h2>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Saisissez le montant <strong className="text-slate-300">exact</strong> présent sur votre compte BaridiMob en ce moment. Ce solde sert de base de calcul — vos bénéfices s'y ajouteront automatiquement.
+                </p>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300">Prix de Vente (DA)</label>
-                <input
-                  type="number"
-                  required
-                  value={productPriceDzd}
-                  onChange={(e) => setProductPriceDzd(Number(e.target.value))}
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-emerald-400 focus:outline-none focus:border-emerald-500"
-                />
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-300">
+                  Capital BaridiMob (DA)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    step="any"
+                    value={startingBalanceDzd}
+                    onChange={(e) => setStartingBalanceDzd(e.target.value)}
+                    placeholder="ex: 15000"
+                    autoFocus
+                    className="w-full bg-slate-900/80 border border-white/10 focus:border-emerald-500/60 rounded-2xl px-4 py-3.5 text-2xl font-black text-white placeholder-slate-700 focus:outline-none transition-colors"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500">
+                    DA
+                  </span>
+                </div>
+                {balanceValue > 0 && (
+                  <p className="text-xs text-emerald-400 font-medium">
+                    ✓ {balanceValue.toLocaleString('fr-DZ')} DA enregistré comme capital de départ
+                  </p>
+                )}
+                <p className="text-[11px] text-slate-500">
+                  Vous pouvez aussi saisir 0 et mettre à jour plus tard dans les Paramètres.
+                </p>
               </div>
-            </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
-                <span>Liens de Stock / Tokens (1 ligne = 1 article)</span>
-                <span className="text-[10px] text-slate-400 font-normal">Optionnel</span>
-              </label>
-              <textarea
-                rows={3}
-                placeholder="https://jioai.pro/activate?token=...&#10;https://jioai.pro/activate?token=..."
-                value={initialLinksText}
-                onChange={(e) => setInitialLinksText(e.target.value)}
-                className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-xs font-mono text-slate-200 focus:outline-none focus:border-blue-500 resize-none"
-              />
-            </div>
-
-            <div className="flex items-center gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setStep(1)}
-                className="px-4 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold transition-all cursor-pointer min-h-[48px]"
+                onClick={() => setStep(2)}
+                disabled={startingBalanceDzd.trim() === ''}
+                className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/25 active:scale-[0.98] transition-all cursor-pointer min-h-[52px] touch-manipulation"
               >
-                Retour
+                <span>Continuer</span>
+                <ArrowRight className="w-4 h-4" />
               </button>
 
               <button
-                type="submit"
-                disabled={isSubmitting}
-                className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm flex items-center justify-center gap-2 shadow-xl shadow-emerald-600/30 active:scale-95 transition-all cursor-pointer min-h-[48px]"
+                type="button"
+                onClick={() => {
+                  setStartingBalanceDzd('0');
+                  setStep(2);
+                }}
+                className="w-full text-xs text-slate-500 hover:text-slate-300 transition-colors py-1 cursor-pointer touch-manipulation"
               >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>{isSubmitting ? 'Initialisation...' : 'Valider & Lancer le CRM'}</span>
+                Passer — configurer le capital plus tard
               </button>
             </div>
-          </form>
-        )}
+          ) : (
+            /* ── STEP 2: Product Setup ── */
+            <form onSubmit={handleFinish} className="space-y-4">
+              <div className="space-y-1">
+                <div className="w-11 h-11 rounded-2xl bg-blue-500/15 border border-blue-500/25 flex items-center justify-center mb-3">
+                  <Package className="w-5 h-5 text-blue-400" />
+                </div>
+                <h2 className="text-xl font-black text-white">Produit Principal</h2>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Configurez votre produit phare. Vous pourrez en ajouter d'autres depuis la section Stock.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300">Nom du Produit</label>
+                  <input
+                    type="text"
+                    required
+                    value={productName}
+                    onChange={(e) => setProductName(e.target.value)}
+                    placeholder="ex: Jio AI Pro, Canva Pro..."
+                    className="w-full bg-slate-900/80 border border-white/10 focus:border-blue-500/60 rounded-xl px-3.5 py-2.5 text-sm font-medium text-white placeholder-slate-600 focus:outline-none transition-colors"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-300">Prix de Vente (DA)</label>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      required
+                      min="1"
+                      step="any"
+                      value={productPriceDzd}
+                      onChange={(e) => setProductPriceDzd(e.target.value)}
+                      placeholder="1400"
+                      className="w-full bg-slate-900/80 border border-white/10 focus:border-emerald-500/60 rounded-xl px-3 py-2.5 text-sm font-bold text-emerald-400 placeholder-slate-600 focus:outline-none transition-colors"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-300">Coût Source ($)</label>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      step="any"
+                      min="0"
+                      value={productCostUsd}
+                      onChange={(e) => setProductCostUsd(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full bg-slate-900/80 border border-white/10 focus:border-amber-500/60 rounded-xl px-3 py-2.5 text-sm font-bold text-amber-400 placeholder-slate-600 focus:outline-none transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-300">
+                      Liens / Codes de Stock
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-normal">1 ligne = 1 article — Optionnel</span>
+                  </div>
+                  <textarea
+                    rows={3}
+                    placeholder={"https://example.com/activate?token=...\nhttps://example.com/activate?token=..."}
+                    value={initialLinksText}
+                    onChange={(e) => setInitialLinksText(e.target.value)}
+                    className="w-full bg-slate-900/80 border border-white/10 focus:border-blue-500/60 rounded-xl p-3 text-xs font-mono text-slate-300 placeholder-slate-700 focus:outline-none transition-colors resize-none"
+                  />
+                  {initialLinksText.trim() && (
+                    <p className="text-[11px] text-blue-400">
+                      {initialLinksText.trim().split('\n').filter(Boolean).length} lien(s) prêts à déposer
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="px-4 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white text-xs font-bold transition-all cursor-pointer min-h-[52px] touch-manipulation"
+                >
+                  Retour
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !productName.trim() || !productPriceDzd}
+                  className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-sm flex items-center justify-center gap-2 shadow-xl shadow-emerald-600/25 active:scale-[0.98] transition-all cursor-pointer min-h-[52px] touch-manipulation"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>{isSubmitting ? 'Initialisation...' : 'Lancer le CRM'}</span>
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
       </div>
     </div>
   );

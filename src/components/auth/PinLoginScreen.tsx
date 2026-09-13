@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth, PARTNER_ACCOUNTS } from '@/context/AuthContext';
-import { Lock, ShieldCheck, Delete, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { Lock, Delete, CheckCircle2, AlertCircle, ShieldCheck } from 'lucide-react';
 
 export default function PinLoginScreen() {
   const { verifyPin, completeLogin } = useAuth();
@@ -19,21 +19,19 @@ export default function PinLoginScreen() {
       setPin(newPin);
 
       if (newPin.length === 4) {
-        // Evaluate immediately
         const res = verifyPin(newPin);
         if (res.success && res.partner) {
           setSuccessPartner(res.partner);
-          // Allow 450ms for the celebration / confirmation feedback before unmounting
           setTimeout(() => {
             completeLogin(res.partner!);
-          }, 450);
+          }, 500);
         } else {
           setIsShaking(true);
-          setErrorMsg(res.error || 'Incorrect 4-digit code. Please try again.');
+          setErrorMsg('Code PIN incorrect. Réessayez.');
           setTimeout(() => {
             setPin('');
             setIsShaking(false);
-          }, 600);
+          }, 650);
         }
       }
     },
@@ -54,136 +52,125 @@ export default function PinLoginScreen() {
     }
   }, [successPartner]);
 
-  // Support physical keyboard (desktop, laptop & tablet)
+  // Physical keyboard support
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (/^[0-9]$/.test(e.key)) {
-        handleDigit(e.key);
-      } else if (e.key === 'Backspace') {
-        handleDelete();
-      } else if (e.key === 'Escape') {
-        handleClear();
-      }
+      if (/^[0-9]$/.test(e.key)) handleDigit(e.key);
+      else if (e.key === 'Backspace') handleDelete();
+      else if (e.key === 'Escape') handleClear();
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleDigit, handleDelete, handleClear]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B0F17] px-4 py-6 overflow-y-auto">
-      {/* Background ambient lighting */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 left-1/3 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#090b10] px-4 py-8 overflow-y-auto">
+      {/* Ambient glows */}
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-emerald-500/8 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/4 left-1/4 w-72 h-72 bg-blue-600/6 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="relative w-full max-w-sm mx-auto flex flex-col items-center">
-        {/* Brand Header */}
-        <div className="flex flex-col items-center text-center mb-6">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-emerald-500 p-0.5 shadow-xl shadow-blue-500/20 mb-3 flex items-center justify-center">
-            <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
-              <Lock className="w-6 h-6 text-emerald-400" />
-            </div>
+      <div className="relative w-full max-w-[320px] mx-auto flex flex-col items-center gap-6">
+
+        {/* Brand */}
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-2xl shadow-emerald-500/30">
+            <ShieldCheck className="w-8 h-8 text-white" strokeWidth={1.75} />
           </div>
-          <h1 className="text-xl font-black text-white tracking-tight flex items-center gap-1.5">
-            <span>DzDigital CRM</span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-              PRO
-            </span>
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">Enter your 4-digit security PIN to log in</p>
+          <div>
+            <h1 className="text-xl font-black text-white tracking-tight">DzDigital CRM</h1>
+            <p className="text-xs text-slate-400 mt-0.5">Entrez votre code PIN à 4 chiffres</p>
+          </div>
         </div>
 
-        {/* Success Feedback Card */}
+        {/* Success state */}
         {successPartner ? (
-          <div className="w-full p-6 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-center animate-fade-in space-y-2">
-            <div className="w-12 h-12 rounded-full bg-emerald-500/30 text-emerald-300 mx-auto flex items-center justify-center">
-              <CheckCircle2 className="w-7 h-7" />
+          <div className="w-full p-6 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-center space-y-2 animate-fade-in">
+            <div className="w-12 h-12 rounded-full bg-emerald-500/25 mx-auto flex items-center justify-center">
+              <CheckCircle2 className="w-7 h-7 text-emerald-400" />
             </div>
-            <h2 className="text-base font-bold text-white">Welcome back, {successPartner}!</h2>
-            <p className="text-xs text-emerald-300">Unlocking shared sales & inventory...</p>
+            <p className="text-base font-bold text-white">Bienvenue, {successPartner} !</p>
+            <p className="text-xs text-emerald-400/80">Ouverture du CRM...</p>
           </div>
         ) : (
           <>
-            {/* PIN Dots Display */}
+            {/* PIN dots */}
             <div
-              className={`flex items-center justify-center gap-3.5 mb-6 py-2 transition-transform ${
-                isShaking ? 'animate-bounce' : ''
+              className={`flex items-center justify-center gap-4 transition-transform duration-100 ${
+                isShaking ? 'translate-x-0 animate-shake' : ''
               }`}
+              style={isShaking ? { animation: 'shake 0.5s ease-in-out' } : {}}
             >
               {[0, 1, 2, 3].map((index) => {
                 const isFilled = pin.length > index;
                 return (
                   <div
                     key={index}
-                    className={`w-4 h-4 rounded-full transition-all duration-200 ${
+                    className={`w-3.5 h-3.5 rounded-full transition-all duration-200 ${
                       isFilled
-                        ? 'bg-emerald-400 scale-110 shadow-lg shadow-emerald-400/50'
+                        ? 'bg-emerald-400 scale-110 shadow-lg shadow-emerald-400/60'
                         : isShaking
-                        ? 'bg-red-500/50 border border-red-500'
-                        : 'bg-slate-800 border border-white/20'
+                        ? 'bg-red-500/60 border border-red-500/60'
+                        : 'bg-slate-800 border border-white/15'
                     }`}
                   />
                 );
               })}
             </div>
 
-            {/* Error Message */}
+            {/* Error */}
             {errorMsg && (
-              <div className="mb-4 text-xs font-semibold text-red-400 flex items-center gap-1.5 animate-fade-in">
+              <div className="flex items-center gap-2 text-xs text-red-400 font-medium animate-fade-in -mt-2">
                 <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                 <span>{errorMsg}</span>
               </div>
             )}
 
-            {/* Mobile-Optimized Phone Keypad (3x4 Grid) */}
-            <div className="w-full grid grid-cols-3 gap-2.5 sm:gap-3 mb-5">
+            {/* Keypad 3×4 */}
+            <div className="w-full grid grid-cols-3 gap-3">
               {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
                 <button
                   key={d}
                   type="button"
                   onClick={() => handleDigit(d)}
-                  className="h-14 sm:h-16 rounded-2xl bg-slate-900/80 hover:bg-slate-800 active:bg-slate-700 active:scale-95 border border-white/10 text-xl font-bold text-white flex items-center justify-center shadow-md transition-all cursor-pointer select-none"
+                  className="h-[60px] rounded-2xl bg-slate-900 hover:bg-slate-800 active:bg-slate-700 active:scale-95 border border-white/8 text-xl font-semibold text-white flex items-center justify-center shadow-sm transition-all duration-150 cursor-pointer select-none touch-manipulation"
                 >
                   {d}
                 </button>
               ))}
 
-              {/* Clear button */}
+              {/* Clear */}
               <button
                 type="button"
                 onClick={handleClear}
-                className="h-14 sm:h-16 rounded-2xl bg-slate-950/60 hover:bg-slate-900 active:bg-slate-800 active:scale-95 border border-white/5 text-xs font-bold text-slate-400 hover:text-white flex items-center justify-center transition-all cursor-pointer select-none"
+                className="h-[60px] rounded-2xl bg-slate-950 hover:bg-slate-900 active:scale-95 border border-white/5 text-[11px] font-bold text-slate-500 hover:text-slate-300 flex items-center justify-center transition-all duration-150 cursor-pointer select-none touch-manipulation"
               >
-                Clear
+                Effacer
               </button>
 
-              {/* Digit 0 */}
+              {/* 0 */}
               <button
                 type="button"
                 onClick={() => handleDigit('0')}
-                className="h-14 sm:h-16 rounded-2xl bg-slate-900/80 hover:bg-slate-800 active:bg-slate-700 active:scale-95 border border-white/10 text-xl font-bold text-white flex items-center justify-center shadow-md transition-all cursor-pointer select-none"
+                className="h-[60px] rounded-2xl bg-slate-900 hover:bg-slate-800 active:bg-slate-700 active:scale-95 border border-white/8 text-xl font-semibold text-white flex items-center justify-center shadow-sm transition-all duration-150 cursor-pointer select-none touch-manipulation"
               >
                 0
               </button>
 
-              {/* Backspace button */}
+              {/* Backspace */}
               <button
                 type="button"
                 onClick={handleDelete}
-                className="h-14 sm:h-16 rounded-2xl bg-slate-950/60 hover:bg-slate-900 active:bg-slate-800 active:scale-95 border border-white/5 text-slate-400 hover:text-white flex items-center justify-center transition-all cursor-pointer select-none"
-                aria-label="Delete"
+                aria-label="Supprimer dernier chiffre"
+                className="h-[60px] rounded-2xl bg-slate-950 hover:bg-slate-900 active:scale-95 border border-white/5 text-slate-500 hover:text-slate-300 flex items-center justify-center transition-all duration-150 cursor-pointer select-none touch-manipulation"
               >
                 <Delete className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Master Security PIN indicator */}
-            <div className="w-full pt-3 border-t border-white/10 text-center">
-              <div className="inline-flex items-center gap-2 text-[11px] text-slate-400 bg-slate-950/80 px-3.5 py-1.5 rounded-full border border-white/5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Code PIN Business:</span>
-                <strong className="text-emerald-400 font-mono">1234</strong>
-              </div>
+            {/* Discreet footer — NO PIN shown */}
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
+              <Lock className="w-3 h-3" />
+              <span>Connexion sécurisée — PIN confidentiel</span>
             </div>
           </>
         )}

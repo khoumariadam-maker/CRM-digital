@@ -351,6 +351,31 @@ DzDigital CRM delivers a streamlined, mobile-first web app enabling **Adem** and
   - `npm run build` verified with Turbopack $\rightarrow$ **Exit Code 0** (0 errors, 7/7 routes generated).
   - Committed as `aa9e6d3` and pushed to `origin/main`.
 
+### Phase 14: Zero Fake Data Standard, Security Hardening, Real BaridiMob Setup & UI/UX Rebuild
+* **Elimination of Fake/Showcase Data & Cloud Hygiene (`mockData.ts`, `CRMDataContext.tsx`, `seed.ts`)**:
+  - Completely stripped `INITIAL_SALES` (demo sales with fake customer names) and `INITIAL_CAISSES` (fake shifts with 22,345 DA) from codebase.
+  - Eliminated Firestore auto-seeding of mock sales/shifts when collections are empty; app now starts in a pure fresh real-data state.
+  - Added a one-time automated cloud migration in `CRMDataContext` to purge legacy demo document IDs (`sale-jio-101` through `sale-jio-118`, `caisse-day-01`, etc.) from Firestore.
+  - Initial business capital default changed from hardcoded 22,345 DA to 0 DA.
+  - Converted `seed.ts` from demo data seeding to a pure reset/cleanup utility.
+* **Security & Authentication Hardening (`PinLoginScreen.tsx`)**:
+  - Removed plaintext PIN hint text ("Code PIN Business: 1234") from screen.
+  - Replaced with a discreet "Connexion sécurisée — PIN confidentiel" badge.
+  - Enhanced keypad ergonomics with 60px touch targets, haptic feedback, and error shake animation.
+* **Real BaridiMob Balance Entry & Quick Adjustment (`InitialSetupModal.tsx`, `page.tsx`)**:
+  - Rebuilt initial setup wizard with empty input fields — zero prefilled fake values.
+  - Step 1 dedicated to exact BaridiMob balance entry in DA, establishing the calculation baseline.
+  - Added an instant "Ajuster Solde BaridiMob" modal directly on the main Dashboard Hero card for 2-second balance updates anytime.
+* **Mobile UX & Navigation Overhaul (`globals.css`, `MobileNav.tsx`, `TopHeader.tsx`, `page.tsx`)**:
+  - Imported Google Fonts Inter and JetBrains Mono for typography and financial numbers.
+  - Added `touch-manipulation` to all interactive elements to eliminate the 300ms mobile tap delay.
+  - Rebuilt `MobileNav` with a 5-slot grid (Tableau, Ventes with pending debts badge, central elevated Fast Sale FAB (+), Stock with expiry badge, Réglages) with 48px+ touch targets.
+  - Enhanced `TopHeader` with active partner indicator (Adem in emerald / Abdou in cyan), live cloud status, inline exchange rate editor, currency toggle, and lock button.
+  - Redesigned Dashboard cards with high-contrast dark theme, semantic metrics (profit, revenue, ads, expenses), and welcoming empty states.
+* **Dead Code Cleanup & Build Verification**:
+  - Deleted unused `src/lib/supabase.ts`.
+  - `npm run build` compiled cleanly $\rightarrow$ **Exit Code 0** (0 errors, 7/7 routes generated).
+
 ---
 
 ## Future Roadmap & Enhancements

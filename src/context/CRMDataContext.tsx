@@ -13,12 +13,7 @@ import {
   PaymentStatus,
   StockItem,
 } from '@/types/crm';
-import {
-  INITIAL_SALES,
-  INITIAL_PRODUCTS,
-  INITIAL_CAISSES,
-  INITIAL_EXCHANGE_RATE,
-} from '@/lib/mockData';
+import { INITIAL_EXCHANGE_RATE } from '@/lib/mockData';
 import { calculateSummary, calculateSaleNetProfit, convertUsdToDzd } from '@/lib/calculations';
 import { useCurrency } from './CurrencyContext';
 import { useAuth } from './AuthContext';
@@ -27,6 +22,20 @@ import { SHARED_FIREBASE_CONFIG } from '@/lib/firebaseConfig';
 import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
 
 export type CloudSyncStatus = 'connected' | 'offline' | 'error' | 'syncing';
+
+/**
+ * Known fake/demo document IDs seeded in previous CRM versions.
+ * These are purged from Firestore once on first load via the migration flag.
+ */
+const LEGACY_FAKE_SALE_IDS = [
+  'sale-jio-101', 'sale-jio-102', 'sale-jio-103', 'sale-jio-104', 'sale-jio-105',
+  'sale-jio-106', 'sale-jio-107', 'sale-jio-108', 'sale-jio-109', 'sale-jio-110',
+  'sale-jio-111', 'sale-jio-112', 'sale-jio-113', 'sale-jio-114', 'sale-jio-115',
+  'sale-jio-116', 'sale-jio-117', 'sale-jio-118',
+];
+const LEGACY_FAKE_CAISSE_IDS = ['caisse-day-01', 'caisse-day-02'];
+const LEGACY_FAKE_PRODUCT_IDS = ['prod-jio-ai-pro'];
+const MIGRATION_FLAG = 'crm_migration_v4_purge_done';
 
 interface CRMDataContextType {
   sales: Sale[];
@@ -43,7 +52,7 @@ interface CRMDataContextType {
   cloudSyncError: string | null;
   lastSyncedAt: string | null;
   firebaseConfig: FirebaseConfig;
-  
+
   // Modals state
   isSaleModalOpen: boolean;
   openSaleModal: () => void;
@@ -134,7 +143,7 @@ interface CRMDataContextType {
 
 const CRMDataContext = createContext<CRMDataContextType | undefined>(undefined);
 
-// Sanitizer to remove any undefined or null keys so Firestore never errors (Zero-Crash Hygiene)
+// Zero-Crash Firestore serializer: strips undefined and null keys
 function cleanForFirestore<T extends Record<string, any>>(obj: T): Partial<T> {
   const result: any = {};
   for (const [key, val] of Object.entries(obj)) {
@@ -149,15 +158,18 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
   const { exchangeRate, setExchangeRate } = useCurrency();
   const { partner: authPartner } = useAuth();
 
+  // All state defaults to EMPTY — no hardcoded demo values
   const [sales, setSales] = useState<Sale[]>([]);
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [dailyAdSpends, setDailyAdSpends] = useState<DailyAdSpend[]>([]);
-  const [dailyCaisses, setDailyCaisses] = useState<DailyCaisse[]>(INITIAL_CAISSES);
-  
-  // Starting Capital & Onboarding
-  const [startingCapitalDzd, setStartingCapitalDzd] = useState<number>(22345);
-  const [isConfigured, setIsConfigured] = useState<boolean>(true);
+  const [dailyCaisses, setDailyCaisses] = useState<DailyCaisse[]>([]);
+
+  // Starting capital defaults to 0 — set by setup wizard only
+  const [startingCapitalDzd, setStartingCapitalDzd] = useState<number>(0);
+
+  // isConfigured: false by default — relies on localStorage flag
+  const [isConfigured, setIsConfigured] = useState<boolean>(false);
   const [isInitialSetupOpen, setIsInitialSetupOpen] = useState<boolean>(false);
 
   const [activePartner, setActivePartnerState] = useState<PartnerName>('Adem');
@@ -180,7 +192,6 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
 
   // Toast feedback
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
@@ -206,23 +217,27 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
   const openStockImportModal = () => setIsStockImportModalOpen(true);
   const closeStockImportModal = () => setIsStockImportModalOpen(false);
 
-  // 1. Sync activePartner with authenticated partner
+  // Sync activePartner with authenticated partner
   useEffect(() => {
     if (authPartner === 'Adem' || authPartner === 'Abdou') {
       setActivePartnerState(authPartner);
     }
   }, [authPartner]);
 
-  // 2. Load LocalStorage on mount
+  // 1. Load from LocalStorage on mount
   useEffect(() => {
     try {
-      // Check onboarding configuration
       const configured = localStorage.getItem('crm_business_configured');
       const savedCap = localStorage.getItem('crm_starting_capital');
-      if (savedCap) {
+
+      if (savedCap !== null) {
         setStartingCapitalDzd(Number(savedCap));
       }
-      if (configured !== 'true') {
+
+      if (configured === 'true') {
+        setIsConfigured(true);
+      } else {
+        // Not yet configured — show setup wizard
         setIsConfigured(false);
         setIsInitialSetupOpen(true);
       }
@@ -230,9 +245,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
       const savedSales = localStorage.getItem('crm_sales_v3');
       if (savedSales) {
         const parsed = JSON.parse(savedSales);
-        if (Array.isArray(parsed)) {
-          setSales(parsed);
-        }
+        if (Array.isArray(parsed)) setSales(parsed);
       }
 
       const savedProducts = localStorage.getItem('crm_products_v3');
@@ -242,7 +255,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
           const clean = parsed.filter(
             (p) => p && typeof p.name === 'string' && p.name.trim().length > 0
           );
-          setProducts(clean.length > 0 ? clean : INITIAL_PRODUCTS);
+          if (clean.length > 0) setProducts(clean);
         }
       }
 
@@ -261,13 +274,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
       const savedCaisses = localStorage.getItem('crm_caisses_v1');
       if (savedCaisses) {
         const parsed = JSON.parse(savedCaisses);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setDailyCaisses(parsed);
-        } else {
-          setDailyCaisses(INITIAL_CAISSES);
-        }
-      } else {
-        setDailyCaisses(INITIAL_CAISSES);
+        if (Array.isArray(parsed) && parsed.length > 0) setDailyCaisses(parsed);
       }
 
       const savedPartner = localStorage.getItem('crm_auth_partner') as PartnerName;
@@ -281,7 +288,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // 3. Persist to LocalStorage whenever state changes
+  // 2. Persist to LocalStorage whenever state changes
   useEffect(() => {
     if (!initialized) return;
     try {
@@ -296,7 +303,8 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
     }
   }, [sales, products, expenses, dailyAdSpends, dailyCaisses, activePartner, initialized]);
 
-  // 4. Connect to centralized Firebase Firestore
+  // 3. Connect to Firebase Firestore (real-time sync)
+  //    IMPORTANT: No auto-seeding with demo data. Empty = empty.
   useEffect(() => {
     const db = getFirebaseDb();
     if (!db) {
@@ -307,7 +315,32 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
 
     setCloudSyncStatus('syncing');
 
-    // Sync Sales from Firestore in real-time
+    // One-time migration: purge known legacy fake document IDs from Firestore
+    const runMigration = async () => {
+      const migrationDone = localStorage.getItem(MIGRATION_FLAG);
+      if (migrationDone === 'true') return;
+      try {
+        const purgePromises: Promise<void>[] = [];
+        for (const id of LEGACY_FAKE_SALE_IDS) {
+          purgePromises.push(deleteDoc(doc(db, 'sales', id)).catch(() => {}));
+        }
+        for (const id of LEGACY_FAKE_CAISSE_IDS) {
+          purgePromises.push(deleteDoc(doc(db, 'daily_caisses', id)).catch(() => {}));
+        }
+        for (const id of LEGACY_FAKE_PRODUCT_IDS) {
+          purgePromises.push(deleteDoc(doc(db, 'products', id)).catch(() => {}));
+        }
+        await Promise.all(purgePromises);
+        localStorage.setItem(MIGRATION_FLAG, 'true');
+        console.info('[CRM Migration v4] Purged legacy demo data from Firestore.');
+      } catch (err) {
+        console.warn('[CRM Migration v4] Purge error (non-blocking):', err);
+      }
+    };
+
+    runMigration();
+
+    // Sync Sales — NO auto-seed with demo data
     const unsubSales = onSnapshot(
       collection(db, 'sales'),
       (snapshot) => {
@@ -321,18 +354,10 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
           id: d.id,
         })) as Sale[];
 
-        if (firestoreSales.length > 0) {
-          firestoreSales.sort(
-            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          );
-          setSales(firestoreSales);
-        } else {
-          // If Firestore sales is empty, auto-seed with up-to-date sales
-          INITIAL_SALES.forEach((s) => {
-            setDoc(doc(db, 'sales', s.id), cleanForFirestore(s)).catch(() => {});
-          });
-          setSales(INITIAL_SALES);
-        }
+        firestoreSales.sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        setSales(firestoreSales);
       },
       (error) => {
         console.warn('Firestore sales sync error:', error.message);
@@ -342,34 +367,24 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
-    // Sync Products from Firestore in real-time
+    // Sync Products — NO auto-seed
     const unsubProducts = onSnapshot(
       collection(db, 'products'),
       (snapshot) => {
         const firestoreProducts = snapshot.docs
-          .map((d) => ({
-            ...d.data(),
-            id: d.id,
-          }))
+          .map((d) => ({ ...d.data(), id: d.id }))
           .filter(
             (p: any) => p && typeof p.name === 'string' && p.name.trim().length > 0
           ) as Product[];
 
-        if (firestoreProducts.length > 0) {
-          setProducts(firestoreProducts);
-        } else {
-          INITIAL_PRODUCTS.forEach((p) => {
-            setDoc(doc(db, 'products', p.id), cleanForFirestore(p)).catch(() => {});
-          });
-          setProducts(INITIAL_PRODUCTS);
-        }
+        setProducts(firestoreProducts);
       },
       (error) => {
         console.warn('Firestore products sync error:', error.message);
       }
     );
 
-    // Sync Expenses from Firestore
+    // Sync Expenses
     const unsubExpenses = onSnapshot(
       collection(db, 'expenses'),
       (snapshot) => {
@@ -380,7 +395,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
       (error) => console.warn('Firestore expenses sync error:', error.message)
     );
 
-    // Sync Daily Ad Spends from Firestore
+    // Sync Daily Ad Spends
     const unsubAdSpends = onSnapshot(
       collection(db, 'daily_ad_spends'),
       (snapshot) => {
@@ -391,25 +406,18 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
       (error) => console.warn('Firestore ad spends sync error:', error.message)
     );
 
-    // Sync Daily Caisses from Firestore
+    // Sync Daily Caisses — NO auto-seed
     const unsubCaisses = onSnapshot(
       collection(db, 'daily_caisses'),
       (snapshot) => {
         const list = snapshot.docs.map((d) => ({ ...d.data(), id: d.id })) as DailyCaisse[];
-        if (list.length > 0) {
-          list.sort((a, b) => new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime());
-          setDailyCaisses(list);
-        } else {
-          INITIAL_CAISSES.forEach((c) => {
-            setDoc(doc(db, 'daily_caisses', c.id), cleanForFirestore(c)).catch(() => {});
-          });
-          setDailyCaisses(INITIAL_CAISSES);
-        }
+        list.sort((a, b) => new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime());
+        setDailyCaisses(list);
       },
       (error) => console.warn('Firestore caisses sync error:', error.message)
     );
 
-    // Sync Square exchange rate from Firestore
+    // Sync Square exchange rate
     const unsubRate = onSnapshot(
       doc(db, 'crm_settings', 'exchange_rate'),
       (docSnap) => {
@@ -423,7 +431,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
       (error) => console.warn('Firestore exchange rate error:', error.message)
     );
 
-    // Sync starting capital from Firestore
+    // Sync starting capital
     const unsubCapital = onSnapshot(
       doc(db, 'crm_settings', 'starting_capital'),
       (docSnap) => {
@@ -438,6 +446,22 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
       (error) => console.warn('Firestore capital sync error:', error.message)
     );
 
+    // Sync business config (isConfigured state)
+    const unsubConfig = onSnapshot(
+      doc(db, 'crm_settings', 'business_config'),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data?.isConfigured === true) {
+            setIsConfigured(true);
+            setIsInitialSetupOpen(false);
+            localStorage.setItem('crm_business_configured', 'true');
+          }
+        }
+      },
+      (error) => console.warn('Firestore business config error:', error.message)
+    );
+
     return () => {
       unsubSales();
       unsubProducts();
@@ -446,12 +470,11 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
       unsubCaisses();
       unsubRate();
       unsubCapital();
+      unsubConfig();
     };
   }, [setExchangeRate]);
 
-  const setActivePartner = (p: PartnerName) => {
-    setActivePartnerState(p);
-  };
+  const setActivePartner = (p: PartnerName) => setActivePartnerState(p);
 
   // Active Open Caisse (if any)
   const activeCaisse = useMemo(() => {
@@ -462,7 +485,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
   const updateExchangeRate = async (newRate: number): Promise<void> => {
     if (isNaN(newRate) || newRate <= 0) return;
     setExchangeRate(newRate);
-    showToast(`Exchange rate: 1$ = ${newRate} DA`);
+    showToast(`Taux Square mis à jour : 1$ = ${newRate} DA`);
 
     const db = getFirebaseDb();
     if (db) {
@@ -489,7 +512,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
       metaAd
     );
 
-    const saleNumber = `#${Math.floor(100 + Math.random() * 900)}`;
+    const saleNumber = `#${Math.floor(1000 + Math.random() * 9000)}`;
     const newSale: Sale = {
       id: `sale-${Date.now()}`,
       saleNumber,
@@ -517,13 +540,17 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
     if (db) {
       try {
         await setDoc(doc(db, 'sales', newSale.id), cleanForFirestore(newSale));
-        showToast(`Sale ${saleNumber} saved (${newSale.paymentStatus === 'pending' ? '⏳ Pending payment' : '✅ Paid'})!`);
+        showToast(
+          newSale.paymentStatus === 'pending'
+            ? `Commande ${saleNumber} créée — Paiement en attente ⏳`
+            : `Vente ${saleNumber} confirmée ✅ (+${newSale.netProfitDzd.toLocaleString()} DA)`
+        );
       } catch (err: any) {
         console.warn('Firestore write sale error:', err);
-        showToast(`Sale ${saleNumber} saved locally`);
+        showToast(`Vente ${saleNumber} sauvegardée localement`);
       }
     } else {
-      showToast(`Sale ${saleNumber} saved locally!`);
+      showToast(`Vente ${saleNumber} sauvegardée localement !`);
     }
 
     // Key delivery stock deduction (1 link = 1 item)
@@ -532,7 +559,9 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
         prev.map((p) => {
           if (p.id !== data.productId) return p;
           const updatedKeys = p.stockKeys.filter((k) => k !== data.deliveredKey);
-          const updatedItems = (p.stockItems || []).filter((item) => item.keyOrLink !== data.deliveredKey);
+          const updatedItems = (p.stockItems || []).filter(
+            (item) => item.keyOrLink !== data.deliveredKey
+          );
           if (db) {
             setDoc(
               doc(db, 'products', p.id),
@@ -553,7 +582,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
     setSales((prev) =>
       prev.map((s) => (s.id === saleId ? { ...s, paymentStatus: 'paid' } : s))
     );
-    showToast('Payment received & marked as Paid! ✅');
+    showToast('Paiement confirmé et encaissé ✅');
 
     const db = getFirebaseDb();
     if (db) {
@@ -568,7 +597,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
   // Delete sale
   const deleteSale = async (saleId: string): Promise<void> => {
     setSales((prev) => prev.filter((s) => s.id !== saleId));
-    showToast('Sale removed');
+    showToast('Vente supprimée');
 
     const db = getFirebaseDb();
     if (db) {
@@ -589,6 +618,8 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
       defaultCostUsd: productData.defaultCostUsd,
       defaultSellingDzd: productData.defaultSellingDzd,
       stockKeys: productData.stockKeys || [],
+      stockItems: productData.stockItems || [],
+      lowStockThreshold: productData.lowStockThreshold ?? 2,
       createdAt: new Date().toISOString(),
       ...(productData.description?.trim() ? { description: productData.description.trim() } : {}),
     };
@@ -599,10 +630,12 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
     if (db) {
       try {
         await setDoc(doc(db, 'products', newProduct.id), cleanForFirestore(newProduct));
-        showToast(`Product "${newProduct.name}" added`);
+        showToast(`Produit "${newProduct.name}" ajouté au catalogue`);
       } catch (err: any) {
         console.warn('Firestore write product error:', err);
       }
+    } else {
+      showToast(`Produit "${newProduct.name}" ajouté localement`);
     }
 
     return newProduct;
@@ -610,7 +643,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
 
   const deleteProduct = async (productId: string): Promise<void> => {
     setProducts((prev) => prev.filter((p) => p.id !== productId));
-    showToast('Product removed');
+    showToast('Produit supprimé du catalogue');
 
     const db = getFirebaseDb();
     if (db) {
@@ -645,7 +678,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
       })
     );
 
-    showToast(`Added ${clean.length} items to stock (${expiresAt ? 'with expiration' : 'permanent'})`);
+    showToast(`${clean.length} lien(s) ajouté(s) au stock`);
 
     const db = getFirebaseDb();
     if (db) {
@@ -661,7 +694,6 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Bulk Import Keys across multiple or single products
   const bulkImportKeys = async (
     entries: { productId: string; keys: string[]; expiresAt?: string }[]
   ): Promise<number> => {
@@ -696,7 +728,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
       })
     );
 
-    showToast(`Successfully imported ${totalImported} items into stock! 🎉`);
+    showToast(`${totalImported} article(s) importés dans le stock !`);
     return totalImported;
   };
 
@@ -716,7 +748,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
     };
 
     setExpenses((prev) => [newExpense, ...prev]);
-    showToast(`Dépense "${newExpense.title}" (-${newExpense.amountDzd.toLocaleString()} DA) added`);
+    showToast(`Dépense "${newExpense.title}" enregistrée (-${newExpense.amountDzd.toLocaleString()} DA)`);
 
     const db = getFirebaseDb();
     if (db) {
@@ -732,7 +764,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
 
   const deleteExpense = async (expenseId: string): Promise<void> => {
     setExpenses((prev) => prev.filter((e) => e.id !== expenseId));
-    showToast('Expense removed');
+    showToast('Dépense supprimée');
 
     const db = getFirebaseDb();
     if (db) {
@@ -750,9 +782,13 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
   ): Promise<DailyAdSpend> => {
     const todaySales = sales.filter((s) => s.createdAt.startsWith(spendData.date));
     const salesCount = todaySales.length;
-    const spendDzd = spendData.spendDzd > 0 ? spendData.spendDzd : convertUsdToDzd(spendData.spendUsd, exchangeRate);
-    const spendUsd = spendData.spendUsd > 0 ? spendData.spendUsd : spendData.spendDzd / exchangeRate;
-    
+    const spendDzd =
+      spendData.spendDzd > 0
+        ? spendData.spendDzd
+        : convertUsdToDzd(spendData.spendUsd, exchangeRate);
+    const spendUsd =
+      spendData.spendUsd > 0 ? spendData.spendUsd : spendData.spendDzd / exchangeRate;
+
     const cpmDzd = spendData.messagesCount > 0 ? Math.round(spendDzd / spendData.messagesCount) : 0;
     const cpaDzd = salesCount > 0 ? Math.round(spendDzd / salesCount) : 0;
 
@@ -775,7 +811,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
       return [newAdSpend, ...filtered];
     });
 
-    showToast(`Ad spend for ${spendData.date} logged (${spendDzd.toLocaleString()} DA, CPM: ${cpmDzd} DA)`);
+    showToast(`Meta Ads du ${spendData.date} : ${spendDzd.toLocaleString()} DA (CPM: ${cpmDzd} DA)`);
 
     const db = getFirebaseDb();
     if (db) {
@@ -791,7 +827,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
 
   const deleteDailyAdSpend = async (spendId: string): Promise<void> => {
     setDailyAdSpends((prev) => prev.filter((d) => d.id !== spendId));
-    showToast('Daily ad spend removed');
+    showToast('Dépense publicitaire supprimée');
 
     const db = getFirebaseDb();
     if (db) {
@@ -817,7 +853,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
     };
 
     setDailyCaisses((prev) => [newCaisse, ...prev]);
-    showToast(`Caisse ouverte par ${activePartner} (+${initialBalanceDzd.toLocaleString()} DA float)`);
+    showToast(`Caisse ouverte — Capital : ${initialBalanceDzd.toLocaleString()} DA`);
 
     const db = getFirebaseDb();
     if (db) {
@@ -840,11 +876,14 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
     const caisse = dailyCaisses.find((c) => c.id === caisseId);
     if (!caisse) return;
 
-    // Calculate sales and expenses during this shift
-    const shiftSales = sales.filter((s) => new Date(s.createdAt) >= new Date(caisse.openedAt));
+    const shiftSales = sales.filter(
+      (s) => new Date(s.createdAt) >= new Date(caisse.openedAt) && s.paymentStatus !== 'pending'
+    );
     const totalSalesDzd = shiftSales.reduce((sum, s) => sum + s.sellingPriceDzd, 0);
-    
-    const shiftExpenses = expenses.filter((e) => new Date(e.createdAt) >= new Date(caisse.openedAt));
+
+    const shiftExpenses = expenses.filter(
+      (e) => new Date(e.createdAt) >= new Date(caisse.openedAt)
+    );
     const totalExpensesDzd = shiftExpenses.reduce((sum, e) => sum + e.amountDzd, 0);
 
     const expectedBalanceDzd = caisse.initialBalanceDzd + totalSalesDzd - totalExpensesDzd;
@@ -863,7 +902,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
     };
 
     setDailyCaisses((prev) => prev.map((c) => (c.id === caisseId ? updatedCaisse : c)));
-    showToast(`Caisse clôturée par ${activePartner}. Bilan enregistré.`);
+    showToast('Caisse clôturée. Bilan enregistré.');
 
     const db = getFirebaseDb();
     if (db) {
@@ -875,15 +914,15 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Push all local catalog & sales to Firestore
+  // Push all local data to Firestore
   const syncAllDataToCloud = async (): Promise<void> => {
     const db = getFirebaseDb();
     if (!db) {
-      showToast('Firebase cloud sync is offline');
+      showToast('Firebase cloud sync est hors ligne');
       return;
     }
 
-    showToast('Pushing local data to Firebase cloud...');
+    showToast('Synchronisation en cours...');
     try {
       for (const p of products) {
         await setDoc(doc(db, 'products', p.id), cleanForFirestore(p));
@@ -904,34 +943,36 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
         rate: exchangeRate,
         updatedAt: new Date().toISOString(),
       });
-      showToast('Cloud database synchronized successfully!');
+      showToast('Cloud synchronisé avec succès !');
     } catch (err: any) {
       console.error('Cloud sync error:', err);
-      showToast(`Sync error: ${err.message || 'Check Firestore rules'}`);
+      showToast(`Erreur de sync : ${err.message || 'Vérifiez les règles Firestore'}`);
     }
   };
 
-  // Sync / Reset to up-to-date production baseline (22,345 DZD BaridiMob capital & 7 pending payments)
+  // resetToFresh — hard reset to totally empty state (no demo data injection)
   const resetToFresh = () => {
-    setSales(INITIAL_SALES);
-    setProducts(INITIAL_PRODUCTS);
+    setSales([]);
+    setProducts([]);
     setExpenses([]);
     setDailyAdSpends([]);
-    setDailyCaisses(INITIAL_CAISSES);
-    localStorage.setItem('crm_sales_v3', JSON.stringify(INITIAL_SALES));
-    localStorage.setItem('crm_products_v3', JSON.stringify(INITIAL_PRODUCTS));
-    localStorage.setItem('crm_caisses_v1', JSON.stringify(INITIAL_CAISSES));
+    setDailyCaisses([]);
+    setStartingCapitalDzd(0);
+    setIsConfigured(false);
+    setIsInitialSetupOpen(true);
+
+    localStorage.removeItem('crm_business_configured');
+    localStorage.removeItem('crm_starting_capital');
+    localStorage.removeItem('crm_sales_v3');
+    localStorage.removeItem('crm_products_v3');
     localStorage.removeItem('crm_expenses_v1');
     localStorage.removeItem('crm_ad_spends_v1');
+    localStorage.removeItem('crm_caisses_v1');
 
-    const db = getFirebaseDb();
-    if (db) {
-      INITIAL_SALES.forEach((s) => setDoc(doc(db, 'sales', s.id), cleanForFirestore(s)).catch(() => {}));
-      INITIAL_CAISSES.forEach((c) => setDoc(doc(db, 'daily_caisses', c.id), cleanForFirestore(c)).catch(() => {}));
-    }
-    showToast('Données synchronisées : 22,345 DA BaridiMob & 7 paiements à crédit ! ✨');
+    showToast('CRM réinitialisé à zéro. Configurez votre capital initial.');
   };
 
+  // completeInitialSetup — called by wizard when user sets their real balance + product
   const completeInitialSetup = async (
     initialBalance: number,
     prodName: string,
@@ -953,74 +994,62 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
             .filter(Boolean)
         : [];
 
-      const newProd: Product = {
-        id: 'prod-jio-ai-pro',
-        name: prodName,
-        category: 'AI Tools',
-        defaultCostUsd: 0,
-        defaultSellingDzd: prodPrice,
-        stockKeys: initialKeys,
-        stockItems: initialKeys.map((k, i) => ({
-          id: `stk-${Date.now()}-${i}`,
-          keyOrLink: k,
-          addedAt: new Date().toISOString(),
-        })),
-        lowStockThreshold: 2,
-        description: 'Produit principal configuré.',
-        createdAt: new Date().toISOString(),
-      };
+      const cleanName = prodName.trim();
+      if (cleanName) {
+        const newProd: Product = {
+          id: `prod-${Date.now()}`,
+          name: cleanName,
+          category: 'Digital',
+          defaultCostUsd: 0,
+          defaultSellingDzd: prodPrice,
+          stockKeys: initialKeys,
+          stockItems: initialKeys.map((k, i) => ({
+            id: `stk-${Date.now()}-${i}`,
+            keyOrLink: k,
+            addedAt: new Date().toISOString(),
+          })),
+          lowStockThreshold: 2,
+          createdAt: new Date().toISOString(),
+        };
 
-      setProducts([newProd]);
-      localStorage.setItem('crm_products_v3', JSON.stringify([newProd]));
+        setProducts([newProd]);
+        localStorage.setItem('crm_products_v3', JSON.stringify([newProd]));
 
+        const db = getFirebaseDb();
+        if (db) {
+          setDoc(doc(db, 'products', newProd.id), cleanForFirestore(newProd)).catch(() => {});
+          setDoc(doc(db, 'crm_settings', 'starting_capital'), {
+            value: initialBalance,
+            updatedAt: new Date().toISOString(),
+          }).catch(() => {});
+          setDoc(doc(db, 'crm_settings', 'business_config'), cleanForFirestore({
+            isConfigured: true,
+            startingCapitalDzd: initialBalance,
+            configuredAt: new Date().toISOString(),
+          })).catch(() => {});
+        }
+      }
+
+      // Start fresh with empty sales — user starts from today
       setSales([]);
       localStorage.setItem('crm_sales_v3', JSON.stringify([]));
 
-      const newCaisse: DailyCaisse = {
-        id: `caisse-${new Date().toISOString().split('T')[0]}`,
-        date: new Date().toISOString().split('T')[0],
-        status: 'open',
-        openedAt: new Date().toISOString(),
-        openedBy: 'Adem',
-        initialBalanceDzd: initialBalance,
-        initialBalanceUsd: 0,
-        notes: 'Fonds initial BaridiMob configuré',
-      };
-      setDailyCaisses([newCaisse]);
-      localStorage.setItem('crm_caisses_v1', JSON.stringify([newCaisse]));
-
-      const db = getFirebaseDb();
-      if (db) {
-        setDoc(doc(db, 'crm_settings', 'business_config'), cleanForFirestore({
-          isConfigured: true,
-          startingCapitalDzd: initialBalance,
-          configuredAt: new Date().toISOString(),
-        })).catch(() => {});
-        setDoc(doc(db, 'products', newProd.id), cleanForFirestore(newProd)).catch(() => {});
-        setDoc(doc(db, 'daily_caisses', newCaisse.id), cleanForFirestore(newCaisse)).catch(() => {});
-      }
     } catch (err) {
       console.error('Setup save error:', err);
     }
 
-    showToast('Configuration validée ! Bienvenue sur DzDigital CRM. 🎉');
+    showToast(`Configuration validée ! Capital initial : ${initialBalance.toLocaleString()} DA 🎉`);
   };
 
   const resetBusinessSetup = () => {
-    localStorage.removeItem('crm_business_configured');
-    localStorage.removeItem('crm_starting_capital');
-    localStorage.removeItem('crm_sales_v3');
-    setIsConfigured(false);
-    setIsInitialSetupOpen(true);
-    setSales([]);
-    showToast('CRM réinitialisé — Lancez la nouvelle configuration.');
+    resetToFresh();
   };
 
   const financials = useMemo(() => {
     return calculateSummary(sales, exchangeRate, expenses, dailyAdSpends, startingCapitalDzd);
   }, [sales, exchangeRate, expenses, dailyAdSpends, startingCapitalDzd]);
 
-  // Stock Alert: Products with low or zero stock (<= threshold or <= 2)
+  // Stock Alert: Products with low or zero stock
   const lowStockProducts = useMemo(() => {
     return products
       .filter((p) => p && typeof p.name === 'string' && p.name.trim().length > 0)
@@ -1046,7 +1075,7 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
       .filter((item) => item.isExpired || item.isExpiringSoon);
   }, [products]);
 
-  // Update starting capital and persist to both localStorage and Firestore
+  // Update starting capital
   const updateStartingCapital = async (val: number): Promise<void> => {
     if (isNaN(val) || val < 0) return;
     setStartingCapitalDzd(val);
@@ -1075,7 +1104,6 @@ export function CRMDataProvider({ children }: { children: React.ReactNode }) {
         if (p.id !== productId) return p;
         updatedItems = (p.stockItems || []).filter((item) => item.keyOrLink !== keyOrLink);
         updatedKeys = updatedItems.map((item) => item.keyOrLink);
-        // If stockItems is empty (legacy product), fall back to filtering stockKeys
         if ((p.stockItems || []).length === 0) {
           updatedKeys = (p.stockKeys || []).filter((k) => k !== keyOrLink);
         }

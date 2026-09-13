@@ -3,62 +3,101 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Landmark, Package, Settings, Plus } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Package, Settings, Plus } from 'lucide-react';
 import { useCRMData } from '@/context/CRMDataContext';
 
 export default function MobileNav() {
   const pathname = usePathname();
-  const { openSaleModal, financials } = useCRMData();
+  const { openSaleModal, sales, expiringStockItems } = useCRMData();
+
+  const pendingCount = sales.filter((s) => s.paymentStatus === 'pending').length;
+  const expiredCount = (expiringStockItems || []).length;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-xl border-t border-white/10 px-4 py-2 pb-[max(0.6rem,env(safe-area-inset-bottom))] lg:hidden shadow-2xl">
-      <div className="flex items-center justify-around max-w-md mx-auto relative">
-        {/* Tab 1: Caisse & Ventes */}
+    <nav
+      aria-label="Navigation Principale Mobile"
+      className="fixed bottom-0 left-0 right-0 z-40 bg-[#090D16]/95 backdrop-blur-2xl border-t border-white/[0.08] px-2 py-1.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden shadow-[0_-8px_32px_rgba(0,0,0,0.5)]"
+    >
+      <div className="grid grid-cols-5 items-center max-w-lg mx-auto relative">
+        {/* Tab 1: Tableau de bord */}
         <Link
           href="/"
-          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
-            pathname === '/' ? 'text-emerald-400 font-extrabold' : 'text-slate-400 hover:text-slate-200'
+          className={`flex flex-col items-center justify-center min-h-[48px] py-1 px-1 rounded-2xl transition-all duration-200 active:scale-95 ${
+            pathname === '/'
+              ? 'text-emerald-400 font-bold bg-emerald-500/10'
+              : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          <Landmark className="w-5 h-5" />
-          <span className="text-[10px] tracking-tight">Caisse & Ventes</span>
+          <LayoutDashboard className={`w-5 h-5 transition-transform ${pathname === '/' ? 'scale-110' : ''}`} />
+          <span className="text-[11px] tracking-tight mt-0.5">Tableau</span>
         </Link>
 
-        {/* Center Floating "+" Button to Log Fast Sale */}
-        <div className="relative -top-5 flex justify-center">
+        {/* Tab 2: Commandes & Ventes */}
+        <Link
+          href="/orders"
+          className={`flex flex-col items-center justify-center min-h-[48px] py-1 px-1 rounded-2xl transition-all duration-200 relative active:scale-95 ${
+            pathname === '/orders'
+              ? 'text-emerald-400 font-bold bg-emerald-500/10'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <div className="relative">
+            <ShoppingBag className={`w-5 h-5 transition-transform ${pathname === '/orders' ? 'scale-110' : ''}`} />
+            {pendingCount > 0 && (
+              <span className="absolute -top-1 -right-2 bg-amber-500 text-slate-950 font-black text-[9px] px-1.5 py-0.2 rounded-full ring-2 ring-[#090D16] animate-pulse">
+                {pendingCount}
+              </span>
+            )}
+          </div>
+          <span className="text-[11px] tracking-tight mt-0.5">Ventes</span>
+        </Link>
+
+        {/* Center Floating Action Button (+) — 56px touch target */}
+        <div className="flex items-center justify-center relative -top-4">
           <button
             type="button"
             onClick={openSaleModal}
-            className="w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-600 via-teal-600 to-emerald-500 text-white shadow-xl shadow-emerald-500/40 flex items-center justify-center active:scale-95 transition-all border-4 border-[#0B0F17] cursor-pointer"
-            title="Nouvelle Vente"
-            aria-label="Nouvelle Vente"
+            className="w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-600 via-teal-500 to-emerald-400 text-white shadow-xl shadow-emerald-500/40 flex items-center justify-center active:scale-90 transition-transform duration-150 border-4 border-[#090D16] cursor-pointer hover:brightness-110 focus:outline-none"
+            title="Nouvelle Vente Flash (3s)"
+            aria-label="Nouvelle Vente Flash"
           >
-            <Plus className="w-6 h-6 stroke-[3]" />
+            <Plus className="w-7 h-7 stroke-[3] transition-transform group-active:rotate-90" />
           </button>
         </div>
 
-        {/* Tab 2: Stock & Liens */}
+        {/* Tab 3: Stock & Liens */}
         <Link
           href="/products"
-          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all relative ${
-            pathname === '/products' ? 'text-emerald-400 font-extrabold' : 'text-slate-400 hover:text-slate-200'
+          className={`flex flex-col items-center justify-center min-h-[48px] py-1 px-1 rounded-2xl transition-all duration-200 relative active:scale-95 ${
+            pathname === '/products'
+              ? 'text-emerald-400 font-bold bg-emerald-500/10'
+              : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          <Package className="w-5 h-5" />
-          <span className="text-[10px] tracking-tight">Stock / Liens</span>
+          <div className="relative">
+            <Package className={`w-5 h-5 transition-transform ${pathname === '/products' ? 'scale-110' : ''}`} />
+            {expiredCount > 0 && (
+              <span className="absolute -top-1 -right-2 bg-red-500 text-white font-black text-[9px] px-1.5 py-0.2 rounded-full ring-2 ring-[#090D16]">
+                !
+              </span>
+            )}
+          </div>
+          <span className="text-[11px] tracking-tight mt-0.5">Stock</span>
         </Link>
 
-        {/* Tab 3: Paramètres */}
+        {/* Tab 4: Paramètres */}
         <Link
           href="/settings"
-          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
-            pathname === '/settings' ? 'text-emerald-400 font-extrabold' : 'text-slate-400 hover:text-slate-200'
+          className={`flex flex-col items-center justify-center min-h-[48px] py-1 px-1 rounded-2xl transition-all duration-200 active:scale-95 ${
+            pathname === '/settings'
+              ? 'text-emerald-400 font-bold bg-emerald-500/10'
+              : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          <Settings className="w-5 h-5" />
-          <span className="text-[10px] tracking-tight">Paramètres</span>
+          <Settings className={`w-5 h-5 transition-transform ${pathname === '/settings' ? 'scale-110' : ''}`} />
+          <span className="text-[11px] tracking-tight mt-0.5">Réglages</span>
         </Link>
       </div>
-    </div>
+    </nav>
   );
 }
