@@ -1,6 +1,10 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import AppShell from '@/components/layout/AppShell';
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
   title: 'DzDigital CRM | Algeria Digital Goods & Sales Tracker',
@@ -26,7 +30,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark h-full">
+    <html lang="en" className={cn("dark h-full", "font-sans", geist.variable)}>
       <body className="h-full bg-[#0B0F17] text-slate-100 antialiased selection:bg-blue-600 selection:text-white overscroll-none">
         <AppShell>{children}</AppShell>
       </body>

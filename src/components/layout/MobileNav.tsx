@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, ShoppingBag, Package, Settings, Plus } from 'lucide-react';
 import { useCRMData } from '@/context/CRMDataContext';
+import { Badge } from '@/components/ui/badge';
 
 export default function MobileNav() {
   const pathname = usePathname();
@@ -44,9 +45,12 @@ export default function MobileNav() {
           <div className="relative">
             <ShoppingBag className={`w-5 h-5 transition-transform ${pathname === '/orders' ? 'scale-110' : ''}`} />
             {pendingCount > 0 && (
-              <span className="absolute -top-1 -right-2 bg-amber-500 text-slate-950 font-black text-[9px] px-1.5 py-0.2 rounded-full ring-2 ring-[#090D16] animate-pulse">
+              <Badge
+                variant="outline"
+                className="absolute -top-1.5 -right-2.5 h-4 px-1 text-[9px] font-black bg-amber-500 text-slate-950 border-amber-400 ring-2 ring-[#090D16] animate-pulse"
+              >
                 {pendingCount}
-              </span>
+              </Badge>
             )}
           </div>
           <span className="text-[11px] tracking-tight mt-0.5">Ventes</span>
@@ -77,9 +81,12 @@ export default function MobileNav() {
           <div className="relative">
             <Package className={`w-5 h-5 transition-transform ${pathname === '/products' ? 'scale-110' : ''}`} />
             {expiredCount > 0 && (
-              <span className="absolute -top-1 -right-2 bg-red-500 text-white font-black text-[9px] px-1.5 py-0.2 rounded-full ring-2 ring-[#090D16]">
+              <Badge
+                variant="destructive"
+                className="absolute -top-1.5 -right-2.5 h-4 px-1 text-[9px] font-black ring-2 ring-[#090D16]"
+              >
                 !
-              </span>
+              </Badge>
             )}
           </div>
           <span className="text-[11px] tracking-tight mt-0.5">Stock</span>

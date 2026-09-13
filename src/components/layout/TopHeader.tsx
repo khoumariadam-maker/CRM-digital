@@ -6,6 +6,7 @@ import { useCRMData } from '@/context/CRMDataContext';
 import { useAuth } from '@/context/AuthContext';
 import { parseNumericInput } from '@/lib/calculations';
 import { Check, Edit2, Lock, User, Wifi, WifiOff } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 export default function TopHeader() {
   const { currency, toggleCurrency, exchangeRate } = useCurrency();
@@ -64,10 +65,11 @@ export default function TopHeader() {
 
         {/* Right Side: Partner Badge, Square Rate, Currency Toggle & Lock */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* Active Partner Pill */}
+          {/* Active Partner Pill with shadcn Badge */}
           {partner && (
-            <div
-              className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+            <Badge
+              variant="outline"
+              className={`hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold ${
                 isAdem
                   ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
                   : 'bg-cyan-500/15 border-cyan-500/30 text-cyan-300'
@@ -76,7 +78,7 @@ export default function TopHeader() {
             >
               <User className="w-3 h-3" />
               <span>{partner}</span>
-            </div>
+            </Badge>
           )}
 
           {/* Square Rate Pill */}

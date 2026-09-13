@@ -7,6 +7,22 @@ import { useCurrency } from '@/context/CurrencyContext';
 import { generateWhatsAppLink } from '@/lib/calculations';
 import GrowthChart from '@/components/dashboard/GrowthChart';
 import DailyReportCard from '@/components/DailyReportCard';
+
+// shadcn UI primitives
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+
 import {
   Landmark,
   Plus,
@@ -26,12 +42,7 @@ import {
   ChevronRight,
   BarChart3,
   Edit3,
-  ArrowUpRight,
   Wallet,
-  DollarSign,
-  Layers,
-  Sparkles,
-  X,
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -50,9 +61,8 @@ export default function DashboardPage() {
     openCaisseModal,
     startingCapitalDzd,
     updateStartingCapital,
-    openInitialSetup,
   } = useCRMData();
-  const { format, exchangeRate, currency } = useCurrency();
+  const { format, currency } = useCurrency();
 
   // Feed Tab: 'pending' (actionable credits) | 'confirmed' (paid sales)
   const [feedTab, setFeedTab] = useState<'pending' | 'confirmed'>('pending');
@@ -140,39 +150,40 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 animate-fade-in pb-20 max-w-2xl mx-auto">
-      {/* 1. HERO: REAL BARIDIMOB CAPITAL CARD */}
-      <div className="relative p-5 sm:p-7 rounded-3xl bg-gradient-to-br from-[#0e1626] via-[#090d16] to-[#0b101c] border border-emerald-500/25 shadow-2xl shadow-emerald-950/30 overflow-hidden">
+    <div className="flex flex-col gap-5 animate-fade-in pb-20 max-w-2xl mx-auto">
+      {/* 1. HERO: REAL BARIDIMOB CAPITAL CARD (Composing shadcn Card) */}
+      <Card className="relative p-5 sm:p-7 rounded-3xl bg-gradient-to-br from-[#0e1626] via-[#090d16] to-[#0b101c] border-emerald-500/25 shadow-2xl shadow-emerald-950/30 overflow-hidden ring-0 gap-3">
         {/* Glow ambient background elements */}
         <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-36 h-36 bg-teal-500/5 rounded-full blur-2xl pointer-events-none" />
 
-        <div className="relative z-10 space-y-3">
-          {/* Header row of card */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center">
-                <Landmark className="w-4 h-4" />
-              </div>
-              <span className="text-[11px] sm:text-xs font-bold text-emerald-400 uppercase tracking-wider">
-                Solde BaridiMob Actuel
-              </span>
+        <CardHeader className="p-0 flex flex-row items-center justify-between gap-2">
+          <CardTitle className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center">
+              <Landmark className="w-4 h-4" />
             </div>
+            <span className="text-[11px] sm:text-xs font-bold text-emerald-400 uppercase tracking-wider">
+              Solde BaridiMob Actuel
+            </span>
+          </CardTitle>
 
-            <button
-              type="button"
-              onClick={() => {
-                setNewBalanceInput(baridiMobBalance.toString());
-                setIsEditBalanceOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-slate-300 hover:text-white text-[11px] font-semibold transition-all cursor-pointer"
-              title="Ajuster le solde BaridiMob"
-            >
-              <Edit3 className="w-3 h-3 text-emerald-400" />
-              <span>Ajuster</span>
-            </button>
-          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setNewBalanceInput(baridiMobBalance.toString());
+              setIsEditBalanceOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-slate-300 hover:text-white text-[11px] font-semibold h-7"
+            title="Ajuster le solde BaridiMob"
+          >
+            <Edit3 className="size-3 text-emerald-400" data-icon="inline-start" />
+            <span>Ajuster</span>
+          </Button>
+        </CardHeader>
 
+        <CardContent className="p-0 flex flex-col gap-2">
           {/* Big Balance Number */}
           <div className="flex items-baseline gap-2">
             <span className="text-3xl sm:text-5xl font-black text-white tracking-tight font-mono">
@@ -182,9 +193,12 @@ export default function DashboardPage() {
 
           {/* Today's Context Subtitle */}
           <div className="flex items-center flex-wrap gap-2 text-xs font-medium text-slate-400 pt-1">
-            <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+            <Badge
+              variant="outline"
+              className="text-emerald-400 font-bold bg-emerald-500/10 border-emerald-500/20 px-2 py-0.5"
+            >
               Aujourd&apos;hui: +{(financials.todayProfitDzd || 0).toLocaleString()} DA
-            </span>
+            </Badge>
             {todayAdsSpend > 0 && (
               <span className="text-indigo-300 font-medium">
                 • Ads: -{todayAdsSpend.toLocaleString()} DA
@@ -216,8 +230,8 @@ export default function DashboardPage() {
               </span>
             </button>
           )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Stock Expiry Alert Banner */}
       {expiringStockItems && expiringStockItems.length > 0 && (
@@ -240,163 +254,181 @@ export default function DashboardPage() {
       )}
 
       {/* 2. PRIMARY ACTION: BIG FAST SALE BUTTON (< 3s Sale) */}
-      <div className="space-y-2.5">
-        <button
+      <div className="flex flex-col gap-2.5">
+        <Button
           type="button"
           onClick={openSaleModal}
-          className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-white font-black text-base shadow-xl shadow-emerald-600/30 active:scale-[0.98] transition-all flex items-center justify-center gap-3 cursor-pointer min-h-[58px]"
+          className="w-full py-6 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-white font-black text-base shadow-xl shadow-emerald-600/30 active:scale-[0.98] transition-all min-h-[58px] cursor-pointer"
         >
-          <Plus className="w-6 h-6 stroke-[3]" />
+          <Plus className="size-6 stroke-[3]" data-icon="inline-start" />
           <span>+ Nouvelle Vente Flash (&lt; 3s)</span>
-        </button>
+        </Button>
 
         {/* Secondary Quick Action Row */}
         <div className="grid grid-cols-2 gap-2 sm:gap-3">
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={openAdSpendModal}
-            className="py-3 px-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-white/10 hover:border-indigo-500/40 text-indigo-300 hover:text-white text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer min-h-[48px] active:scale-95"
+            className="py-3 px-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border-white/10 hover:border-indigo-500/40 text-indigo-300 hover:text-white text-xs font-bold min-h-[48px] h-auto active:scale-95"
           >
-            <Megaphone className="w-4 h-4 text-indigo-400" />
+            <Megaphone className="size-4 text-indigo-400" data-icon="inline-start" />
             <span>+ Ads Meta</span>
-          </button>
+          </Button>
 
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={openExpenseModal}
-            className="py-3 px-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-white/10 hover:border-rose-500/40 text-rose-300 hover:text-white text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer min-h-[48px] active:scale-95"
+            className="py-3 px-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border-white/10 hover:border-rose-500/40 text-rose-300 hover:text-white text-xs font-bold min-h-[48px] h-auto active:scale-95"
           >
-            <Receipt className="w-4 h-4 text-rose-400" />
+            <Receipt className="size-4 text-rose-400" data-icon="inline-start" />
             <span>+ Dépense</span>
-          </button>
+          </Button>
         </div>
 
         {/* Third Quick Action Row: Caisse Shift & WhatsApp Report */}
         <div className="grid grid-cols-2 gap-2 sm:gap-3">
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={openCaisseModal}
-            className="py-2.5 px-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-white/5 hover:border-cyan-500/30 text-cyan-300 hover:text-white text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer min-h-[44px]"
+            className="py-2.5 px-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-white/5 hover:border-cyan-500/30 text-cyan-300 hover:text-white text-xs font-bold min-h-[44px] h-auto"
           >
-            <Wallet className="w-4 h-4 text-cyan-400" />
+            <Wallet className="size-4 text-cyan-400" data-icon="inline-start" />
             <span>Shift de Caisse</span>
-          </button>
+          </Button>
 
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setIsReportOpen(true)}
-            className="py-2.5 px-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-white/5 hover:border-emerald-500/30 text-slate-300 hover:text-white text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer min-h-[44px]"
+            className="py-2.5 px-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-white/5 hover:border-emerald-500/30 text-slate-300 hover:text-white text-xs font-bold min-h-[44px] h-auto"
           >
-            <BarChart3 className="w-4 h-4 text-emerald-400" />
+            <BarChart3 className="size-4 text-emerald-400" data-icon="inline-start" />
             <span>Rapport WhatsApp</span>
-          </button>
+          </Button>
         </div>
       </div>
 
-      {/* 3. METRICS CARDS: NET PROFIT, REVENUE, ADS, EXPENSES */}
+      {/* 3. METRICS CARDS: NET PROFIT, REVENUE, ADS, EXPENSES (Composing shadcn Card) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         {/* Net Profit */}
-        <div className="p-3.5 rounded-2xl glass-card border border-white/10 space-y-1">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-            Bénéfice Net
-          </span>
-          <div className="text-lg sm:text-xl font-black text-emerald-400 font-mono">
-            {format(financials.netProfitDzd)}
-          </div>
-          <span className="text-[10px] text-slate-500 font-medium">
-            Marge: {financials.profitMarginPercent}%
-          </span>
-        </div>
+        <Card className="glass-card border-white/10 rounded-2xl p-3.5 ring-0 gap-1">
+          <CardHeader className="p-0">
+            <CardDescription className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              Bénéfice Net
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="text-lg sm:text-xl font-black text-emerald-400 font-mono">
+              {format(financials.netProfitDzd)}
+            </div>
+            <span className="text-[10px] text-slate-500 font-medium">
+              Marge: {financials.profitMarginPercent}%
+            </span>
+          </CardContent>
+        </Card>
 
         {/* Total Revenue */}
-        <div className="p-3.5 rounded-2xl glass-card border border-white/10 space-y-1">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-            Chiffre d&apos;Affaires
-          </span>
-          <div className="text-lg sm:text-xl font-black text-cyan-300 font-mono">
-            {format(financials.totalRevenueDzd)}
-          </div>
-          <span className="text-[10px] text-slate-500 font-medium">
-            {paidSales.length} ventes
-          </span>
-        </div>
+        <Card className="glass-card border-white/10 rounded-2xl p-3.5 ring-0 gap-1">
+          <CardHeader className="p-0">
+            <CardDescription className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              Chiffre d&apos;Affaires
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="text-lg sm:text-xl font-black text-cyan-300 font-mono">
+              {format(financials.totalRevenueDzd)}
+            </div>
+            <span className="text-[10px] text-slate-500 font-medium">
+              {paidSales.length} ventes
+            </span>
+          </CardContent>
+        </Card>
 
         {/* Ads Spend */}
-        <div className="p-3.5 rounded-2xl glass-card border border-white/10 space-y-1">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-            Meta Ads
-          </span>
-          <div className="text-lg sm:text-xl font-black text-indigo-300 font-mono">
-            {format(financials.totalMetaAdSpendDzd)}
-          </div>
-          <span className="text-[10px] text-slate-500 font-medium">
-            {dailyAdSpends.length} jour(s)
-          </span>
-        </div>
+        <Card className="glass-card border-white/10 rounded-2xl p-3.5 ring-0 gap-1">
+          <CardHeader className="p-0">
+            <CardDescription className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              Meta Ads
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="text-lg sm:text-xl font-black text-indigo-300 font-mono">
+              {format(financials.totalMetaAdSpendDzd)}
+            </div>
+            <span className="text-[10px] text-slate-500 font-medium">
+              {dailyAdSpends.length} jour(s)
+            </span>
+          </CardContent>
+        </Card>
 
         {/* Expenses */}
-        <div className="p-3.5 rounded-2xl glass-card border border-white/10 space-y-1">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-            Dépenses
-          </span>
-          <div className="text-lg sm:text-xl font-black text-rose-300 font-mono">
-            {format(financials.totalExpensesDzd)}
-          </div>
-          <span className="text-[10px] text-slate-500 font-medium">
-            {expenses.length} dépense(s)
-          </span>
-        </div>
+        <Card className="glass-card border-white/10 rounded-2xl p-3.5 ring-0 gap-1">
+          <CardHeader className="p-0">
+            <CardDescription className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              Dépenses
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="text-lg sm:text-xl font-black text-rose-300 font-mono">
+              {format(financials.totalExpensesDzd)}
+            </div>
+            <span className="text-[10px] text-slate-500 font-medium">
+              {expenses.length} dépense(s)
+            </span>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* 4. SEGMENTED ORDERS FEED: À ENCAISSER vs CONFIRMÉES */}
-      <div className="space-y-3 pt-2">
-        {/* Segmented Control Pills */}
-        <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-slate-950 border border-white/10">
-          <button
-            type="button"
-            onClick={() => setFeedTab('pending')}
-            className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer min-h-[44px] ${
-              feedTab === 'pending'
-                ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30 font-extrabold'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
-            }`}
+      {/* 4. SEGMENTED ORDERS FEED: À ENCAISSER vs CONFIRMÉES (Composing shadcn Tabs) */}
+      <Tabs
+        value={feedTab}
+        onValueChange={(val) => setFeedTab(val as 'pending' | 'confirmed')}
+        className="w-full flex flex-col gap-3 pt-2"
+      >
+        <TabsList className="grid grid-cols-2 w-full h-12 bg-slate-950 border border-white/10 p-1 rounded-2xl">
+          <TabsTrigger
+            value="pending"
+            className="rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer h-full data-active:bg-amber-600 data-active:text-white data-active:shadow-md data-active:shadow-amber-600/30"
           >
-            <Clock className="w-3.5 h-3.5 shrink-0" />
+            <Clock className="size-3.5 shrink-0" />
             <span>À Encaisser (Crédits)</span>
-            <span
-              className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-black ${
-                feedTab === 'pending' ? 'bg-amber-800 text-white' : 'bg-slate-800 text-slate-300'
+            <Badge
+              variant="outline"
+              className={`text-[10px] px-1.5 py-0.2 font-mono font-black h-4.5 ${
+                feedTab === 'pending'
+                  ? 'bg-amber-800 text-white border-amber-700'
+                  : 'bg-slate-800 text-slate-300 border-transparent'
               }`}
             >
               {pendingSales.length}
-            </span>
-          </button>
+            </Badge>
+          </TabsTrigger>
 
-          <button
-            type="button"
-            onClick={() => setFeedTab('confirmed')}
-            className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer min-h-[44px] ${
-              feedTab === 'confirmed'
-                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30 font-extrabold'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
-            }`}
+          <TabsTrigger
+            value="confirmed"
+            className="rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer h-full data-active:bg-emerald-600 data-active:text-white data-active:shadow-md data-active:shadow-emerald-600/30"
           >
-            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+            <CheckCircle2 className="size-3.5 shrink-0" />
             <span>Ventes Encaissées</span>
-            <span
-              className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-black ${
-                feedTab === 'confirmed' ? 'bg-emerald-800 text-white' : 'bg-slate-800 text-slate-300'
+            <Badge
+              variant="outline"
+              className={`text-[10px] px-1.5 py-0.2 font-mono font-black h-4.5 ${
+                feedTab === 'confirmed'
+                  ? 'bg-emerald-800 text-white border-emerald-700'
+                  : 'bg-slate-800 text-slate-300 border-transparent'
               }`}
             >
               {paidSales.length}
-            </span>
-          </button>
-        </div>
+            </Badge>
+          </TabsTrigger>
+        </TabsList>
 
         {/* FEED CONTENT */}
-        {feedTab === 'pending' ? (
-          /* PENDING DEBTS LIST */
-          pendingSales.length === 0 ? (
+        <TabsContent value="pending" className="mt-1">
+          {pendingSales.length === 0 ? (
             <div className="p-8 rounded-3xl glass-card border border-white/10 text-center space-y-2.5">
               <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-6 h-6" />
@@ -409,7 +441,7 @@ export default function DashboardPage() {
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="flex flex-col gap-3">
               {pendingSales.map((sale) => {
                 const waLink = generateWhatsAppLink(
                   sale.customerPhone,
@@ -417,9 +449,9 @@ export default function DashboardPage() {
                 );
 
                 return (
-                  <div
+                  <Card
                     key={sale.id}
-                    className="p-4 sm:p-5 rounded-2xl bg-slate-950 border border-amber-500/40 space-y-3 shadow-lg shadow-amber-950/20"
+                    className="p-4 sm:p-5 rounded-2xl bg-slate-950 border-amber-500/40 shadow-lg shadow-amber-950/20 ring-0 gap-3"
                   >
                     {/* Top Row: Product, Amount, Date */}
                     <div className="flex items-start justify-between gap-2">
@@ -428,9 +460,12 @@ export default function DashboardPage() {
                           <span className="font-mono text-[11px] text-amber-400 font-bold">
                             {sale.saleNumber}
                           </span>
-                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          <Badge
+                            variant="outline"
+                            className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-[10px] font-bold"
+                          >
                             En Attente
-                          </span>
+                          </Badge>
                         </div>
                         <h4 className="font-bold text-white text-base mt-0.5">
                           {sale.productName}
@@ -468,36 +503,38 @@ export default function DashboardPage() {
                         <p className="text-xs font-mono text-emerald-300 truncate select-all">
                           {sale.deliveredKey}
                         </p>
-                        <button
+                        <Button
                           type="button"
+                          variant="outline"
+                          size="sm"
                           onClick={() => handleCopy(sale.deliveredKey!, sale.id)}
-                          className="w-full py-2 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                          className="w-full bg-emerald-600/20 hover:bg-emerald-600/30 border-emerald-500/30 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 h-8"
                         >
                           {copiedId === sale.id ? (
                             <>
-                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              <Check className="size-3.5 text-emerald-400" data-icon="inline-start" />
                               <span>Copié dans le presse-papier !</span>
                             </>
                           ) : (
                             <>
-                              <Copy className="w-3.5 h-3.5 text-emerald-400" />
+                              <Copy className="size-3.5 text-emerald-400" data-icon="inline-start" />
                               <span>📋 Copier le Lien d&apos;Activation</span>
                             </>
                           )}
-                        </button>
+                        </Button>
                       </div>
                     )}
 
                     {/* Action Row: Confirm Payment & WhatsApp */}
                     <div className="flex items-center justify-between pt-2 border-t border-white/5 gap-2">
-                      <button
+                      <Button
                         type="button"
                         onClick={() => markSaleAsPaid(sale.id)}
-                        className="flex-1 py-3 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 active:scale-95 transition-all cursor-pointer min-h-[46px]"
+                        className="flex-1 py-3 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 active:scale-95 transition-all min-h-[46px] h-auto"
                       >
-                        <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
+                        <CheckCircle2 className="size-4 stroke-[2.5]" data-icon="inline-start" />
                         <span>✅ Encaissé (Confirmer)</span>
-                      </button>
+                      </Button>
 
                       <div className="flex items-center gap-1.5 shrink-0">
                         {sale.customerPhone && (
@@ -512,24 +549,27 @@ export default function DashboardPage() {
                           </a>
                         )}
 
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="icon-sm"
                           onClick={() => deleteSale(sale.id)}
-                          className="p-2.5 rounded-xl text-slate-500 hover:text-red-400 min-w-[40px] min-h-[44px] flex items-center justify-center cursor-pointer"
+                          className="text-slate-500 hover:text-red-400 min-w-[40px] min-h-[44px]"
                           title="Supprimer la commande"
                         >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                          <Trash2 className="size-4" />
+                        </Button>
                       </div>
                     </div>
-                  </div>
+                  </Card>
                 );
               })}
             </div>
-          )
-        ) : (
-          /* CONFIRMED PAID SALES LIST */
-          paidSales.length === 0 ? (
+          )}
+        </TabsContent>
+
+        <TabsContent value="confirmed" className="mt-1">
+          {paidSales.length === 0 ? (
             <div className="p-8 sm:p-10 rounded-3xl glass-card border border-white/10 text-center space-y-3">
               <div className="w-12 h-12 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mx-auto">
                 <ShoppingBag className="w-6 h-6" />
@@ -540,17 +580,17 @@ export default function DashboardPage() {
               <p className="text-xs text-slate-400 max-w-sm mx-auto">
                 Appuyez sur &quot;+ Nouvelle Vente Flash&quot; pour logguer votre première commande en 3 secondes.
               </p>
-              <button
+              <Button
                 type="button"
                 onClick={openSaleModal}
-                className="mt-2 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-500 transition-all cursor-pointer shadow-lg shadow-emerald-600/20"
+                className="mt-2 bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-500 shadow-lg shadow-emerald-600/20"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="size-4" data-icon="inline-start" />
                 <span>Enregistrer une Vente</span>
-              </button>
+              </Button>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="flex flex-col gap-3">
               {paidSales.map((sale) => {
                 const waLink = generateWhatsAppLink(
                   sale.customerPhone,
@@ -560,9 +600,9 @@ export default function DashboardPage() {
                 );
 
                 return (
-                  <div
+                  <Card
                     key={sale.id}
-                    className="p-4 rounded-2xl bg-slate-950 border border-white/10 space-y-2.5 hover:border-white/20 transition-all"
+                    className="p-4 rounded-2xl bg-slate-950 border-white/10 ring-0 gap-2.5 hover:border-white/20 transition-all"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -570,9 +610,12 @@ export default function DashboardPage() {
                           <span className="font-mono text-[11px] text-slate-400 font-bold">
                             {sale.saleNumber}
                           </span>
-                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                          <Badge
+                            variant="outline"
+                            className="bg-emerald-500/15 text-emerald-400 border-emerald-500/25 text-[10px] font-bold"
+                          >
                             Encaissé
-                          </span>
+                          </Badge>
                           <span className="text-[10px] text-slate-500">
                             {new Date(sale.createdAt).toLocaleTimeString([], {
                               hour: '2-digit',
@@ -606,26 +649,28 @@ export default function DashboardPage() {
                         <p className="text-xs font-mono text-emerald-300 truncate">
                           {sale.deliveredKey}
                         </p>
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="icon-xs"
                           onClick={() => handleCopy(sale.deliveredKey!, sale.id)}
-                          className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white cursor-pointer shrink-0"
+                          className="bg-slate-800 text-slate-300 hover:text-white shrink-0"
                           title="Copier le lien"
                         >
                           {copiedId === sale.id ? (
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            <Check className="size-3.5 text-emerald-400" />
                           ) : (
-                            <Copy className="w-3.5 h-3.5" />
+                            <Copy className="size-3.5" />
                           )}
-                        </button>
+                        </Button>
                       </div>
                     )}
 
                     {/* Action Bar */}
                     <div className="flex items-center justify-between pt-2 border-t border-white/5 text-xs">
-                      <span className="capitalize text-[10px] text-slate-400 font-semibold bg-white/5 px-2 py-0.5 rounded-md">
+                      <Badge variant="outline" className="capitalize text-[10px] text-slate-400 font-semibold bg-white/5 border-transparent">
                         {sale.paymentMethod || 'BaridiMob'}
-                      </span>
+                      </Badge>
 
                       <div className="flex items-center gap-1.5 ml-auto">
                         {sale.customerPhone && (
@@ -640,41 +685,46 @@ export default function DashboardPage() {
                           </a>
                         )}
 
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="icon-xs"
                           onClick={() => deleteSale(sale.id)}
-                          className="p-2 rounded-xl text-slate-500 hover:text-red-400 min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
+                          className="text-slate-500 hover:text-red-400 min-w-[36px] min-h-[36px]"
                           title="Supprimer"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                          <Trash2 className="size-3.5" />
+                        </Button>
                       </div>
                     </div>
-                  </div>
+                  </Card>
                 );
               })}
             </div>
-          )
-        )}
-      </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      <Separator className="bg-white/5 my-1" />
 
       {/* 5. COLLAPSIBLE GROWTH CHART AT BOTTOM */}
-      <div className="pt-2 border-t border-white/5">
-        <button
+      <div className="pt-1">
+        <Button
           type="button"
+          variant="outline"
           onClick={() => setShowChart(!showChart)}
-          className="w-full py-3 px-4 rounded-2xl bg-slate-950/80 hover:bg-slate-900 border border-white/5 hover:border-white/10 text-xs font-semibold text-slate-400 hover:text-white flex items-center justify-between transition-all cursor-pointer"
+          className="w-full py-3 px-4 rounded-2xl bg-slate-950/80 hover:bg-slate-900 border-white/5 hover:border-white/10 text-xs font-semibold text-slate-400 hover:text-white flex items-center justify-between h-auto"
         >
           <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-emerald-400" />
+            <TrendingUp className="size-4 text-emerald-400" data-icon="inline-start" />
             <span>Courbe de Croissance &amp; Tendances</span>
           </div>
           {showChart ? (
-            <ChevronUp className="w-4 h-4 text-slate-400" />
+            <ChevronUp className="size-4 text-slate-400" data-icon="inline-end" />
           ) : (
-            <ChevronDown className="w-4 h-4 text-slate-400" />
+            <ChevronDown className="size-4 text-slate-400" data-icon="inline-end" />
           )}
-        </button>
+        </Button>
 
         {showChart && (
           <div className="mt-3 animate-fade-in">
@@ -682,78 +732,69 @@ export default function DashboardPage() {
               sales={sales}
               dailyAdSpends={dailyAdSpends}
               expenses={expenses}
-              exchangeRate={exchangeRate}
+              exchangeRate={242}
             />
           </div>
         )}
       </div>
 
-      {/* Quick Adjust Balance Modal */}
-      {isEditBalanceOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="w-full max-w-sm rounded-3xl bg-[#0F1525] border border-emerald-500/30 p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Landmark className="w-5 h-5 text-emerald-400" />
-                <h3 className="font-bold text-white text-base">Ajuster Solde BaridiMob</h3>
+      {/* Quick Adjust Balance Modal (Composing shadcn Dialog) */}
+      <Dialog open={isEditBalanceOpen} onOpenChange={setIsEditBalanceOpen}>
+        <DialogContent className="w-full max-w-sm rounded-3xl bg-[#0F1525] border-emerald-500/30 p-6 space-y-4 shadow-2xl text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-white text-base font-bold">
+              <Landmark className="size-5 text-emerald-400" />
+              <span>Ajuster Solde BaridiMob</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-400">
+              Saisissez le montant exact présent actuellement sur votre compte BaridiMob.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSaveBalance} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-300">
+                Solde en Dinar Algérien (DA)
+              </label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  step="any"
+                  min="0"
+                  required
+                  value={newBalanceInput}
+                  onChange={(e) => setNewBalanceInput(e.target.value)}
+                  placeholder="ex: 25000"
+                  autoFocus
+                  className="w-full bg-slate-950 border-white/10 focus-visible:border-emerald-500 rounded-xl px-4 py-3 text-xl font-bold text-white placeholder-slate-600 h-12"
+                />
+                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-500">
+                  DA
+                </span>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsEditBalanceOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
             </div>
 
-            <p className="text-xs text-slate-400">
-              Saisissez le montant exact présent actuellement sur votre compte BaridiMob.
-            </p>
-
-            <form onSubmit={handleSaveBalance} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">
-                  Solde en Dinar Algérien (DA)
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    step="any"
-                    min="0"
-                    required
-                    value={newBalanceInput}
-                    onChange={(e) => setNewBalanceInput(e.target.value)}
-                    placeholder="ex: 25000"
-                    autoFocus
-                    className="w-full bg-slate-900 border border-white/10 focus:border-emerald-500 rounded-xl px-4 py-3 text-xl font-bold text-white placeholder-slate-600 focus:outline-none"
-                  />
-                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-500">
-                    DA
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsEditBalanceOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-white/10 text-slate-300 font-semibold text-xs hover:bg-white/5 cursor-pointer"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSavingBalance || newBalanceInput.trim() === ''}
-                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-emerald-600/20 cursor-pointer"
-                >
-                  {isSavingBalance ? 'Enregistrement...' : 'Valider'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <div className="flex items-center gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsEditBalanceOpen(false)}
+                className="flex-1 py-2.5 rounded-xl border-white/10 text-slate-300 font-semibold text-xs hover:bg-white/5"
+              >
+                Annuler
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSavingBalance || newBalanceInput.trim() === ''}
+                className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/20"
+              >
+                {isSavingBalance ? 'Enregistrement...' : 'Valider'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Daily Report Card Modal */}
       <DailyReportCard

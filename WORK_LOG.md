@@ -378,6 +378,28 @@ DzDigital CRM delivers a streamlined, mobile-first web app enabling **Adem** and
 
 ---
 
+### Phase 15: shadcn/ui Official Integration & Primitive Component Refactoring
+* **Official shadcn/ui Scaffolding**:
+  - Initialized `components.json` with Next.js 16 (Turbopack) and Tailwind CSS v4 support (`@base-ui/react`, `class-variance-authority`, `tw-animate-css`, `clsx`, `tailwind-merge`).
+  - Created `src/lib/utils.ts` providing the canonical `cn()` class merging utility.
+  - Configured shadcn registry to install components directly into `src/components/ui/`.
+* **Core Primitives Installed**:
+  - `Button` (`src/components/ui/button.tsx`): Variant-driven (`default`, `outline`, `secondary`, `ghost`, `destructive`) with `data-icon` support.
+  - `Card` (`src/components/ui/card.tsx`): Composable `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`.
+  - `Badge` (`src/components/ui/badge.tsx`): Status and counter pills supporting outline, default, and destructive variants.
+  - `Tabs` (`src/components/ui/tabs.tsx`): Accessible tab groups (`Tabs`, `TabsList`, `TabsTrigger`, `TabsContent`).
+  - `Dialog` (`src/components/ui/dialog.tsx`): Accessible modal overlays with animated backdrops, titles, and descriptions.
+  - `Input` (`src/components/ui/input.tsx`): Standardized input fields with focus rings.
+  - `Separator` (`src/components/ui/separator.tsx`): Semantic structural dividers.
+* **Component Refactoring**:
+  - **Dashboard (`src/app/page.tsx`)**: Refactored Hero BaridiMob balance card and KPI metric tiles (Net Profit, Revenue, Ads, Expenses) to composable `Card` elements; converted feed toggle to `Tabs` with counter `Badge` components; converted quick-balance modal to `Dialog`.
+  - **Orders Journal (`src/app/orders/page.tsx`)**: Header, status tabs, search `Input`, and sales stream cards refactored to shadcn primitives.
+  - **Navigation (`MobileNav.tsx` & `TopHeader.tsx`)**: Counter badges and partner indicators upgraded to shadcn `Badge`.
+* **Build Verification**:
+  - `npm run build` verified with Turbopack $\rightarrow$ **Exit Code 0** (0 errors, 7/7 routes static).
+
+---
+
 ## Future Roadmap & Enhancements
 
 1. **Telegram Bot Integration**:
